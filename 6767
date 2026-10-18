@@ -140,7 +140,7 @@ AR2_velocityTracker = setmetatable({}, { __mode = "k" })
 
 
 AR2_CFG = {
-    players  = { on = false, hitCheck = false, box = true, name = true, tracer = false, weapon = true, dist = true, chams = true, maxDist = 2000, healthBar = true, skeleton = false },
+    players  = { on = false, hitCheck = false, box = true, name = true, tracer = false, weapon = true, dist = true, chams = true, maxDist = 2000, healthBar = true, skeleton = false, espHz = 60 },
     zombies  = { on = false, box = true, name = false, tracer = false, agro = true, dist = true, maxDist = 500, healthBar = true, skeleton = false },
     loot     = { on = false, box = false, name = true, tracer = false, chams = true, dist = true, maxDist = 1200, minRank = 0 },
     vehicles = { on = false, box = false, name = true, tracer = false, dist = true, maxDist = 1500, chams = false },
@@ -171,7 +171,7 @@ AR2_CFG = {
         part = "Head", players = false, zombies = true, visCheck = false,
         showFov = true, showLockLine = true, autoSpeed = true, dropComp = true,
         bulletSpeed = 0, originShift = true, redirectChance = 100,
-        originMaxShift = 2, originRadius = 2, originNudge = 0,
+        originMaxShift = 2, originRadius = 2, originNudge = 0, originMemo = 0.25,
         maxLeadSpeed = 60, maxLeadStuds = 80,
         noTeammate = false,
     },
@@ -471,6 +471,8 @@ function AR2_setNoFallDamage() end
 function AR2_isLibraryGui() return false end
 function AR2_setAntiRagdoll() end
 function AR2_setAdsWhileSprint() end
+function AR2_setForceSprint() return false end
+function AR2_dumpCharFields() end
 function AR2_setNameSpoof() end
 function AR2_cosDress() return false end
 function AR2_cosCatalogue() return {} end
@@ -797,9 +799,6 @@ function AR2_applyLoadedConfig()
         if AR2_CFG.car.tpDash then AR2_startCarDash() else AR2_stopCarDash() end
         if AR2_CFG.misc.fly then AR2_startFly() else AR2_stopFly() end
         AR2_set3pAds(AR2_CFG.misc.thirdPersonADS.enabled)
-        AR2_toggleRemoveTextures(AR2_CFG.misc.removeTextures)
-        AR2_toggleRemoveLeaves(AR2_CFG.misc.removeLeaves)
-        AR2_toggleRemoveBushes(AR2_CFG.misc.removeBushes)
         AR2_toggleHidePlayer(AR2_CFG.misc.hidePlayer)
         AR2_toggleHideGun(AR2_CFG.misc.hideGun)
         AR2_setWallbangAll(AR2_CFG.weapon.wallbang)
@@ -822,18 +821,15 @@ function AR2_applyLoadedConfig()
         if AR2_CFG.weapon.instantReload then setInstantReloadEnabled(true) else setInstantReloadEnabled(false) end
         AR2_setPersonalCharacter(AR2_CFG.misc.personalCharOn, AR2_CFG.misc.personalCharMode, AR2_CFG.misc.personalCharHue, AR2_CFG.misc.personalCharGray, AR2_CFG.misc.personalCharMaterial, AR2_CFG.misc.personalCharRainbow)
         AR2_setPersonalGun(AR2_CFG.misc.personalGunOn, AR2_CFG.misc.personalGunMode, AR2_CFG.misc.personalGunHue, AR2_CFG.misc.personalGunGray, AR2_CFG.misc.personalGunMaterial, AR2_CFG.misc.personalGunRainbow)
-        AR2_applySkybox(AR2_CFG.visuals.skybox)
         AR2_toggleHitmarker(AR2_CFG.hitmarker.enabled)
         AR2_toggleCrosshair(AR2_CFG.crosshair.enabled)
         if AR2_CFG.tp.respawnTP then AR2_toggleRespawnTP(true) else AR2_toggleRespawnTP(false) end
         if AR2_CFG.weapon.hbeOn then AR2_hbeSetEnabled(true) else AR2_hbeSetEnabled(false) end
-        if AR2_CFG.misc.cosUnlock then AR2_cosSetEnabled(true) else AR2_cosSetEnabled(false) end
         AR2_setAutoReload(AR2_CFG.weapon.autoReload)
         AR2_setInstantInteract(AR2_CFG.misc.instantInteract)
         AR2_setPlayerJesus(AR2_CFG.misc.playerJesus)
         AR2_setSelfBacktrack(AR2_CFG.misc.selfBacktrack.enabled)
         AR2_setJumpCircle(AR2_CFG.misc.jumpCircle.enabled)
-        AR2_setRemoveShadows(AR2_CFG.misc.removeShadows)
         AR2_setClouds(AR2_CFG.visuals.cloudsEnabled, AR2_CFG.visuals.modifyClouds, AR2_CFG.visuals.cloudsColor, AR2_CFG.visuals.cloudsCover, AR2_CFG.visuals.cloudsDensity)
         AR2_setColorCorrection(AR2_CFG.visuals.colorCorrectionEnabled, AR2_CFG.visuals.ccSaturation, AR2_CFG.visuals.ccContrast, AR2_CFG.visuals.ccBrightness)
         AR2_toggleWorldwide(AR2_CFG.magicAim.ignoreFov)
@@ -854,7 +850,7 @@ function AR2_applyLoadedConfig()
         AR2_setNameSpoof(AR2_CFG.misc.killfeedSpoof)
         AR2_setAntiRagdoll(AR2_CFG.misc.antiRagdoll)
         AR2_setAdsWhileSprint(AR2_CFG.misc.adsWhileSprint)
-        if AR2_CFG.misc.fakeBag then AR2_setFakeBag(true) end
+        AR2_setForceSprint(AR2_CFG.misc.forceSprint)
         AR2_setVehicleEquip(AR2_CFG.weapon.vehicleEquip)
         AR2_setRemoveDoors(AR2_CFG.visuals.removeDoors)
         AR2_setRemoveSunRays(AR2_CFG.visuals.removeSunRays)
@@ -865,6 +861,35 @@ function AR2_applyLoadedConfig()
     end)
     if not success then warn("[Config Load Error] " .. tostring(err)) end
     return success
+end
+
+-- Everything on the Cosmetics tab. These depend on game assets / the wardrobe /
+-- the character being fully replicated, which is NOT true at config-load time,
+-- so they silently failed and had to be toggled by hand anyway. They are now
+-- skipped on load entirely: whatever you have set live stays set, and the
+-- config never stomps it with a value that wouldn't have applied.
+AR2_COSMETIC_SKIP = {
+    misc = {
+        guiUnlock=true, cosUnlock=true, outfitAuto=true, cosRemoveAll=true,
+        fakeBag=true, bagName=true, bagHideReal=true, bagPart=true, bagPreset=true,
+        bagScale=true, bagOffX=true, bagOffY=true, bagOffZ=true,
+        bagYaw=true, bagPitch=true, bagRoll=true,
+        removeShadows=true, removeTextures=true, removeLeaves=true, removeBushes=true,
+    },
+    weapon  = { skinOn=true, skinName=true },
+    visuals = { fullbright=true, nofog=true, setTime=true, brightness=true,
+                time=true, skybox=true },
+}
+
+function AR2_stripCosmetics(cfg)
+    if type(cfg) ~= "table" then return cfg end
+    for section, keys in pairs(AR2_COSMETIC_SKIP) do
+        local t = rawget(cfg, section)
+        if type(t) == "table" then
+            for k in pairs(keys) do t[k] = nil end
+        end
+    end
+    return cfg
 end
 
 function AR2_loadConfigByName(name)
@@ -878,7 +903,7 @@ function AR2_loadConfigByName(name)
     if not read then return false end
     local decoded, data = pcall(AR2_HttpService.JSONDecode, AR2_HttpService, raw)
     if not decoded or type(data) ~= "table" then return false end
-    AR2_mergeInto(AR2_CFG, AR2_jsonRestore(data.cfg))
+    AR2_mergeInto(AR2_CFG, AR2_stripCosmetics(AR2_jsonRestore(data.cfg)))
     AR2_mergeInto(AR2_SETTINGS, AR2_jsonRestore(data.settings))
 
     return AR2_applyLoadedConfig()
@@ -2412,11 +2437,21 @@ function AR2_esp.update()
     elseif not anyOn and AR2_espConn then AR2_esp.stop() end
 end
 
+-- PERF: ESP used to rebuild every single frame. At 240fps that's 4x the work of
+-- 60fps for zero visible benefit. espHz caps the rebuild rate; 0 = every frame.
+AR2_espAccum = 0
 function AR2_esp.start()
     if AR2_espConn then return end
     if not AR2_hasDrawing then return end
     AR2_esp.enabled = true
-    AR2_espConn = AR2_RunService.RenderStepped:Connect(function()
+    AR2_espAccum = 0
+    AR2_espConn = AR2_RunService.RenderStepped:Connect(function(dt)
+        local hz = tonumber(AR2_CFG.players and AR2_CFG.players.espHz) or 60
+        if hz > 0 then
+            AR2_espAccum += (dt or 0)
+            if AR2_espAccum < (1/hz) then return end
+            AR2_espAccum = 0
+        end
         AR2_Camera = Workspace.CurrentCamera
         local ok, err = pcall(AR2_buildFrame)
         if not ok then warn("[esp] " .. tostring(err)) end
@@ -4821,33 +4856,88 @@ function AR2_autoNudge(origin, direction)
     return n
 end
 
-function AR2_findBestOrigin(origin, direction, targetPos, targetChar)
-    local rayParams = RaycastParams.new()
-    rayParams.FilterType = Enum.RaycastFilterType.Exclude
-    rayParams.FilterDescendantsInstances = { AR2_LocalPlayer.Character, targetChar }
-    local dirs = {
+-- PERF: the direction table is built ONCE at load instead of allocating 28
+-- Vector3s + running a 27-iteration triple loop on every single shot.
+-- Order is byte-identical to the original so the chosen origin never changes.
+local AR2_ORIGIN_DIRS = (function()
+    local d = {
         Vector3.new(1,0,0), Vector3.new(-1,0,0), Vector3.new(0,1,0), Vector3.new(0,-1,0),
         Vector3.new(0,0,1), Vector3.new(0,0,-1)
     }
     for x=-1,1 do for y=-1,1 do for z=-1,1 do
-        if math.abs(x)+math.abs(y)+math.abs(z) > 1 then table.insert(dirs, Vector3.new(x,y,z).Unit) end
+        if math.abs(x)+math.abs(y)+math.abs(z) > 1 then d[#d+1] = Vector3.new(x,y,z).Unit end
     end end end
-    table.insert(dirs, direction.Unit)
-    table.insert(dirs, -direction.Unit)
+    return d
+end)()
+-- reused across calls; only the filter list changes
+local AR2_originRayParams = RaycastParams.new()
+AR2_originRayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+-- PERF (the actual win, with zero reg cost): the 840-ray worst case only happens
+-- when NOTHING is clear. Successful shifts early-out in the first few steps.
+-- Firing at 600 RPM re-ran that same hopeless search 10x/sec from nearly the
+-- same spot at the same target, and the answer doesn't change in 100ms. So we
+-- memo the result briefly instead of shortening the search. Full search range,
+-- full step resolution, identical result -- just not recomputed every bullet.
+-- TTL must exceed the fire interval or every shot lands in a fresh window and
+-- the memo never hits (600 RPM = a shot every 0.100s). 0.25s covers ~2-3 shots.
+-- Set to 0 from the UI to disable memoisation entirely (max freshness).
+AR2_originMemo = { key = nil, at = 0, origin = nil, ok = false }
+AR2_lastOriginRays = 0
+
+function AR2_findBestOrigin(origin, direction, targetPos, targetChar)
     local maxRadius = math.clamp(
         tonumber(AR2_CFG.magicAim.originRadius)
             or tonumber(AR2_CFG.magicBullet.searchRadius) or 10, 0, 10)
+    if maxRadius <= 0 then return origin, false end
+
+    local ttl = tonumber(AR2_CFG.magicAim.originMemo)
+    if ttl == nil then ttl = 0.25 end
+    local memo = AR2_originMemo
+    local key
+    if ttl > 0 then
+        -- 1-stud buckets so the memo survives small movement; move (or the
+        -- target moves) a stud and we re-search at full resolution.
+        key = ("%d_%d_%d|%d_%d_%d|%s"):format(
+            origin.X//1, origin.Y//1, origin.Z//1,
+            targetPos.X//1, targetPos.Y//1, targetPos.Z//1,
+            tostring(targetChar))
+        if memo.key == key and (os.clock() - memo.at) < ttl then
+            AR2_lastOriginRays = 0
+            if memo.ok then return memo.origin, true end
+            return origin, false
+        end
+    end
+
+    local rayParams = AR2_originRayParams
+    rayParams.FilterDescendantsInstances = { AR2_LocalPlayer.Character, targetChar }
+
+    local dirs  = AR2_ORIGIN_DIRS
+    local nDirs = #dirs
+    local fwd, back = direction.Unit, -direction.Unit
+
+    -- SAME step resolution and SAME full range as the original. No truncation.
     local stepSize = math.max(0.3, maxRadius/30)
+    local used = 0
+
     for step = stepSize, maxRadius, stepSize do
-        for _, dir in ipairs(dirs) do
+        for i = 1, nDirs + 2 do
+            local dir = (i <= nDirs) and dirs[i] or (i == nDirs+1 and fwd or back)
             local newOrigin = origin + dir*step
-            local result = AR2_Workspace:Raycast(newOrigin, (targetPos-newOrigin).Unit * (targetPos-newOrigin).Magnitude, rayParams)
-            if not result then
-                return newOrigin, true
+            local delta = targetPos - newOrigin
+            if delta.Magnitude > 1e-4 then
+                used += 1
+                if not AR2_Workspace:Raycast(newOrigin, delta, rayParams) then
+                    AR2_lastOriginRays = used
+                    if key then memo.key, memo.at, memo.origin, memo.ok = key, os.clock(), newOrigin, true end
+                    return newOrigin, true
+                end
             end
         end
     end
 
+    AR2_lastOriginRays = used
+    if key then memo.key, memo.at, memo.origin, memo.ok = key, os.clock(), nil, false end
     return origin, false
 end
 
@@ -8859,12 +8949,15 @@ function AR2_hbeInstallHook()
     local rawRaycast = workspace.Raycast
 
     mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-
-        if method == "Raycast" and self == workspace and AR2_CFG.weapon.hbeOn
+        -- PERF: cheapest guards first. getnamecallmethod() is a C call into the
+        -- engine and this closure runs on EVERY namecall in the game, so calling
+        -- it unconditionally taxed every :FindFirstChild/:IsA/:GetChildren even
+        -- with HBE off. Table lookup + pointer compare short-circuit first now.
+        if AR2_CFG.weapon.hbeOn and self == workspace
            and os.clock() < (AR2_bulletCastUntil or 0)
            and not AR2_hbeReentry
-           and not AR2_wbInPierce then
+           and not AR2_wbInPierce
+           and getnamecallmethod() == "Raycast" then
             local origin, direction, params = ...
 
             if typeof(origin) == "Vector3" and params and typeof(params) == "RaycastParams" then
@@ -10157,6 +10250,22 @@ function AR2_bagApply()
         return false, "pick a bag first"
     end
     return AR2_bagSpawn(name)
+end
+
+-- PERF: every bag offset/rotation/scale slider used to call AR2_bagApply on each
+-- tick, and AR2_bagApply does a full Clone() + two GetDescendants() passes + a
+-- re-weld. Dragging a slider respawned the entire bag model dozens of times a
+-- second. This coalesces a drag into one rebuild after the user settles.
+AR2_bagPendingApply = false
+function AR2_bagApplyDebounced(delay)
+    if not AR2_CFG.misc.fakeBag then return end
+    if AR2_bagPendingApply then return end
+    AR2_bagPendingApply = true
+    task.spawn(function()
+        task.wait(delay or 0.12)
+        AR2_bagPendingApply = false
+        if AR2_CFG.misc.fakeBag then pcall(AR2_bagApply) end
+    end)
 end
 
 function AR2_setFakeBag(on)
@@ -14176,6 +14285,77 @@ end
 
 AR2_adsConn = nil
 
+-- ---------------------------------------------------------------------------
+-- FORCE SPRINT (standalone)
+-- Previously this was a sub-option of ADS-while-sprint: it only ran inside that
+-- heartbeat and only while MouseButton2 was held, so it needed ADS, it dropped
+-- the moment you released aim, and it never applied while just walking.
+-- Now it is its own loop that pins the sprint input every frame regardless of
+-- ADS or which way you are moving.
+AR2_sprintConn  = nil
+AR2_sprintHeld  = {}
+-- RunningInput is the sprint *input* flag. AR2 gates actual sprint on movement
+-- direction internally, so we also pin any boolean field on the character class
+-- that looks like the resolved sprint state. We only touch fields that already
+-- exist AND are already booleans, so we never invent members on the class.
+AR2_SPRINT_GATES = { "Running", "IsRunning", "Sprinting", "IsSprinting",
+                     "CanRun", "CanSprint", "SprintInput", "RunInput" }
+
+function AR2_setForceSprint(on)
+    AR2_CFG.misc.forceSprint = on and true or false
+
+    if AR2_sprintConn then AR2_sprintConn:Disconnect() AR2_sprintConn = nil end
+
+    if not AR2_CFG.misc.forceSprint then
+        pcall(function()
+            local gc = AR2_resolveGameCharacter()
+            if type(gc) ~= "table" then return end
+            pcall(function() gc.RunningInput = false end)
+            for f in pairs(AR2_sprintHeld) do pcall(function() gc[f] = false end) end
+        end)
+        AR2_sprintHeld = {}
+        return true, "off"
+    end
+
+    AR2_sprintConn = AR2_RunService.Heartbeat:Connect(function()
+        if not AR2_CFG.misc.forceSprint then return end
+        local gc = AR2_resolveGameCharacter()
+        if type(gc) ~= "table" then return end
+
+        -- pin the input every frame: survives respawn, menus, and ADS release
+        if rawget(gc, "RunningInput") ~= true then
+            pcall(function() gc.RunningInput = true end)
+        end
+        -- omnidirectional: re-assert the resolved state so strafing/backwards
+        -- movement isn't gated back to walk speed
+        for _, f in ipairs(AR2_SPRINT_GATES) do
+            local cur = rawget(gc, f)
+            if type(cur) == "boolean" and cur ~= true then
+                if pcall(function() gc[f] = true end) then AR2_sprintHeld[f] = true end
+            end
+        end
+    end)
+    return true, "on"
+end
+
+-- Debug helper: prints every boolean field on the game character so we can find
+-- the real sprint/direction gate if the candidate list above misses it.
+function AR2_dumpCharFields()
+    local gc = AR2_resolveGameCharacter()
+    if type(gc) ~= "table" then warn("[sprint] no game character") return end
+    local out = { "== GAME CHARACTER FIELDS ==" }
+    for k, v in pairs(gc) do
+        local t = typeof(v)
+        if t == "boolean" or t == "number" then
+            out[#out+1] = ("  %s = %s (%s)"):format(tostring(k), tostring(v), t)
+        end
+    end
+    table.sort(out)
+    local text = table.concat(out, "\n")
+    print(text)
+    if setclipboard then pcall(setclipboard, text) end
+end
+
 function AR2_setAdsWhileSprint(enabled)
     AR2_CFG.misc.adsWhileSprint = enabled and true or false
 
@@ -14184,7 +14364,8 @@ function AR2_setAdsWhileSprint(enabled)
         pcall(function()
             local gc = AR2_resolveGameCharacter()
             if type(gc) == "table" then
-                if AR2_adsSetSprint then gc.RunningInput = false end
+                -- don't clear sprint if the standalone force-sprint owns it
+                if AR2_adsSetSprint and not AR2_CFG.misc.forceSprint then gc.RunningInput = false end
                 if AR2_adsSetZoom   then gc.Zooming      = false end
             end
         end)
@@ -14202,7 +14383,8 @@ function AR2_setAdsWhileSprint(enabled)
             local holdingAim = AR2_UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 
             if not holdingAim then
-                if AR2_adsSetSprint then
+                -- only release sprint if force-sprint isn't holding it on its own
+                if AR2_adsSetSprint and not AR2_CFG.misc.forceSprint then
                     pcall(function() gc.RunningInput = false end)
                     AR2_adsSetSprint = false
                 end
@@ -14219,10 +14401,6 @@ function AR2_setAdsWhileSprint(enabled)
                 AR2_adsForced = (AR2_adsForced or 0) + 1
             end
 
-            if AR2_CFG.misc.forceSprint and rawget(gc, "RunningInput") ~= true then
-                pcall(function() gc.RunningInput = true end)
-                AR2_adsSetSprint = true
-            end
         end)
     end)
 end
@@ -18207,6 +18385,7 @@ function AR2_buildUI()
         addToggle(playerSection,"Health Bar",AR2_CFG.players,"healthBar",function() end)
         addToggle(playerSection,"Skeleton",AR2_CFG.players,"skeleton",function() end)
         addSlider(playerSection,"Max Distance",AR2_CFG.players,"maxDist",100,10000)
+        addSlider(playerSection,"ESP Refresh (Hz, 0=every frame)",AR2_CFG.players,"espHz",0,240)
 
         local staffSection = espTab:AddSection({Name="Mod / Admin Watch"})
         staffSection:AddLabel("Reads the game's own Configs.Staff resolver,")
@@ -18362,6 +18541,7 @@ function AR2_buildUI()
         local silentAimSection = combatTab:AddSection({Name="Silent Aim",Position="right"})
         addToggle(silentAimSection,"Enabled",AR2_CFG.magicAim,"on",function(v) AR2_magicUpdate() end,"silentAim")
         addSlider(silentAimSection,"Aim Radius (degrees)",AR2_CFG.magicAim,"maxBend",1,180)
+        addSlider(silentAimSection,"Origin Search Memo (s, 0=off)",AR2_CFG.magicAim,"originMemo",0,1,0.05)
 
         addSlider(silentAimSection,"Max Distance",AR2_CFG.magicAim,"maxDist",100,2000,50)
         addDropdown(silentAimSection,"Target Part",AR2_MAGIC_AIM_PARTS,AR2_CFG.magicAim,"part")
@@ -18380,45 +18560,6 @@ function AR2_buildUI()
         silentAimSection:AddLabel("far enough to clear what is actually in front.")
         addSlider(silentAimSection,"Max Lead Speed",AR2_CFG.magicAim,"maxLeadSpeed",10,400,10)
         addSlider(silentAimSection,"Max Lead Studs",AR2_CFG.magicAim,"maxLeadStuds",2,150,2)
-        silentAimSection:AddButton({
-            Name = "Shot Error Report",
-            Callback = function()
-                local txt = AR2_shotErrReport()
-                Notif.new({Title="DROIDWARE",Content=txt,Duration=10})
-            end,
-        })
-        silentAimSection:AddButton({
-            Name = "Reset Error Counters",
-            Callback = function()
-                AR2_shotErrReset()
-                Notif.new({Title="DROIDWARE",Content="Cleared",Duration=3})
-            end,
-        })
-        silentAimSection:AddButton({
-            Name = "Reset Aim To Known-Good",
-            Callback = function()
-                local m = AR2_CFG.magicAim
-                m.maxBend        = 180
-                m.originRadius   = 2
-                m.originMaxShift = 2
-                m.originNudge    = 0
-                m.maxDist        = 2000
-                m.dropComp       = true
-                m.autoSpeed      = true
-                m.bulletSpeed    = 0
-                AR2_CFG.weapon.serverSync      = true
-                AR2_CFG.weapon.spreadComp      = true
-                AR2_CFG.weapon.spreadFlySteady = false
-                pcall(AR2_setInstaBullets, false)
-                pcall(AR2_ibRestoreFireConfig)
-                pcall(AR2_ibCleanEquipped)
-                AR2_regShots, AR2_regHits = 0, 0
-                if AR2_uiRefreshAll then pcall(AR2_uiRefreshAll) end
-                Notif.new({Title="DROIDWARE",
-                    Content="Aim reset: bend 8, radius 2, nudge 0, sync+spread on. Weapon data cleaned.",
-                    Duration=8})
-            end,
-        })
         addSlider(silentAimSection,"Redirect Chance %",AR2_CFG.magicAim,"redirectChance",0,100)
         addToggle(silentAimSection,"Worldwide / 360",AR2_CFG.magicAim,"ignoreFov",function(v) AR2_toggleWorldwide(v) end)
 
@@ -18438,128 +18579,25 @@ function AR2_buildUI()
         addToggle(rageBotSection,"Skip Shots The Server Would Block",AR2_CFG.rageBot,"legalOnly")
         rageBotSection:AddButton({Name="PANIC — Disable RageBot Now (L)",Callback=function() AR2_rageBotPanic() end})
 
-        local sightSection = combatTab:AddSection({Name="Sights & Sprint",Position="right"})
-        addFilteredDropdown(sightSection,"Sight",safeList("sights",AR2_listSights),AR2_CFG.weapon,"sightName",function(v)
-            if AR2_CFG.weapon.forceSight then
-                local ok,why = AR2_applyForcedSight()
-                Notif.new({Title="DROIDWARE",
-                    Content=(ok and "Sight: " or "Sight failed: ")..tostring(why),Duration=4})
-            end
-        end)
-        addToggle(sightSection,"Force Sight",AR2_CFG.weapon,"forceSight",function(v)
-            if not v then
-                pcall(AR2_sightClear)
-                Notif.new({Title="DROIDWARE",Content="Sight off",Duration=3})
-                return
-            end
-            local ok,why = AR2_setForceSight(true)
-            if not ok and AR2_CFG.weapon.sightWeld then
-                local ok2,why2 = AR2_sightWeld()
-                ok, why = ok2, (ok2 and ("welded (visual) -- "..tostring(why2))
-                                    or (tostring(why).." / "..tostring(why2)))
-            end
-            Notif.new({Title="DROIDWARE",
-                Content=(ok and "Sight: " or "Sight failed: ")..tostring(why),Duration=6})
-        end)
-        addToggle(sightSection,"Weld Model If No Attachment Slot",AR2_CFG.weapon,"sightWeld")
-        addToggle(sightSection,"Auto Place On Receiver",AR2_CFG.weapon,"sightAuto",function()
-            if AR2_CFG.weapon.forceSight then pcall(AR2_sightWeld) end
-        end)
-        addSlider(sightSection,"Sight Scale",AR2_CFG.weapon,"sightScale",0.2,3,0.05,function()
-            if AR2_CFG.weapon.forceSight then pcall(AR2_sightWeld) end
-        end)
-        local function sOff(label, key, mn, mx, st)
-            addSlider(sightSection, label, AR2_CFG.weapon, key, mn, mx, st, function()
-                if AR2_CFG.weapon.forceSight then pcall(AR2_sightWeld) end
-            end)
-        end
-        sOff("Sight Side",  "sightX", -2, 2, 0.05)
-        sOff("Sight Up",    "sightY", -2, 2, 0.05)
-        sOff("Sight Fwd",   "sightZ", -2, 2, 0.05)
-        sOff("Sight Yaw",   "sightYaw",   -180, 180, 5)
-        sOff("Sight Pitch", "sightPitch", -180, 180, 5)
-        sOff("Sight Roll",  "sightRoll",  -180, 180, 5)
-        addToggle(sightSection,"ADS While Sprinting",AR2_CFG.misc,"adsWhileSprint",function(v) AR2_setAdsWhileSprint(v) end)
-        addToggle(sightSection,"Also Pin Sprint On",AR2_CFG.misc,"forceSprint")
-        sightSection:AddButton({
+        local sprintSection = combatTab:AddSection({Name="Sprint",Position="right"})
+        addToggle(sprintSection,"ADS While Sprinting",AR2_CFG.misc,"adsWhileSprint",function(v) AR2_setAdsWhileSprint(v) end)
+        addToggle(sprintSection,"Force Sprint (all directions, no ADS)",AR2_CFG.misc,"forceSprint",function(v) AR2_setForceSprint(v) end)
+        sprintSection:AddButton({
+            Name = "Dump Character Fields (find sprint gate)",
+            Callback = function()
+                AR2_dumpCharFields()
+                Notif.new({Title="DROIDWARE",Content="Copied to clipboard",Duration=3})
+            end,
+        })
+        sprintSection:AddButton({
             Name = "Dump Item Types",
             Callback = function()
                 AR2_dumpItemTypes()
                 Notif.new({Title="DROIDWARE",Content="Copied to clipboard",Duration=3})
             end,
         })
-        sightSection:AddButton({
-            Name = "Refresh Sight List",
-            Callback = function()
-                local l = AR2_listSights(true)
-                Notif.new({Title="DROIDWARE",
-                    Content=("Found %d sights -- reopen the menu"):format(math.max(#l-1,0)),
-                    Duration=5})
-            end,
-        })
-        sightSection:AddButton({
-            Name = "Dump Sight Info",
-            Callback = function()
-                AR2_sightDump()
-                Notif.new({Title="DROIDWARE",Content="Copied to clipboard",Duration=3})
-            end,
-        })
-        sightSection:AddButton({
-            Name = "Re-apply Sight",
-            Callback = function()
-                local ok,why = AR2_applyForcedSight()
-                Notif.new({Title="DROIDWARE",
-                    Content=(ok and "Sight: " or "Sight failed: ")..tostring(why),Duration=5})
-            end,
-        })
 
         local weaponModsSection = combatTab:AddSection({Name="Weapon Mods",Position="right"})
-        weaponModsSection:AddButton({
-            Name = "Registration Stats",
-            Callback = function()
-                local shots = AR2_regShots or 0
-                local hits  = AR2_regHits  or 0
-                local rate  = (shots > 0) and (hits / shots * 100) or 0
-                local txt = ("shots %d | server impacts %d | %.0f%% registered")
-                    :format(shots, hits, rate)
-                    .. ("\nspeed %s%s"):format(
-                        tostring(math.floor(AR2_lastGoodSpeed or 0)),
-                        (AR2_speedVerified == false) and " (UNVERIFIED -- not leading)" or " (from weapon)")
-                    .. ("\ngravity %s | velMod %s | effective speed %s"):format(
-                        tostring(AR2_gravUsed or "?"),
-                        tostring(AR2_velModUsed or "?"),
-                        tostring(math.floor(AR2_speedUsed or 0)))
-                    .. ("\ninsta: enabled=%s swaps ok=%d failed=%d mult=%s boosted=%s"):format(
-                        tostring(AR2_ibEnabled),
-                        AR2_ibSwapOk or 0,
-                        AR2_ibSwapFail or 0,
-                        tostring(AR2_ibEffectiveMult or 1),
-                        tostring(AR2_ibBoostedSpeed and math.floor(AR2_ibBoostedSpeed) or "-"))
-                    .. ("\nbend last %s deg | ping %s ms | hbe swaps %d")
-                        :format(
-                            AR2_lastBendDeg and ("%.1f"):format(AR2_lastBendDeg) or "-",
-                            tostring(math.floor(AR2_getPing() or 0)),
-                            AR2_hbeSwaps or 0)
-                print("[DROIDWARE] " .. txt)
-                pcall(function() setclipboard(txt) end)
-                Notif.new({Title="DROIDWARE",Content=txt,Duration=8})
-            end,
-        })
-        weaponModsSection:AddButton({
-            Name = "Clean Weapon Data",
-            Callback = function()
-                local ok,why = AR2_ibCleanEquipped()
-                Notif.new({Title="DROIDWARE",
-                    Content=(ok and "" or "Failed: ")..tostring(why),Duration=8})
-            end,
-        })
-        weaponModsSection:AddButton({
-            Name = "Reset Stats",
-            Callback = function()
-                AR2_regShots, AR2_regHits = 0, 0
-                Notif.new({Title="DROIDWARE",Content="Counters cleared",Duration=3})
-            end,
-        })
         addToggle(weaponModsSection,"Server Sync (recommended)",AR2_CFG.weapon,"serverSync",function(v)
             if v then pcall(AR2_applyServerSync) end
         end)
@@ -18606,19 +18644,6 @@ function AR2_buildUI()
         addToggle(hbeSection,"HBE: Show Debug Spheres",AR2_CFG.weapon,"hbeVisual",function(v)
             if AR2_CFG.weapon.hbeOn then AR2_hbeSetEnabled(true) end
         end)
-        hbeSection:AddButton({Name="HBE: Report State",Callback=function()
-            local n, sz = 0, "none"
-            for _, v in pairs(AR2_hbeVisuals or {}) do
-                if v and v.Parent then
-                    n = n + 1
-                    if sz == "none" then sz = string.format("%.1f", v.Size.X) end
-                end
-            end
-            local msg = string.format("cfg size=%s  live parts=%d  part size=%s  castSpoof=%s",
-                tostring(AR2_CFG.weapon.hbeSize), n, sz, tostring(AR2_CFG.weapon.hbeSpoofCast))
-            Notif.new({Title="DROIDWARE",Content=msg,Duration=8})
-            print("[ORIGIN HBE] "..msg)
-        end})
         addToggle(weaponModsSection,"Always Suppressed",AR2_CFG.weapon,"alwaysSuppressed",function(v) AR2_setAlwaysSuppressed(v) end,"alwaysSuppressed")
         addToggle(weaponModsSection,"Vehicle Equip",AR2_CFG.weapon,"vehicleEquip",function(v) AR2_setVehicleEquip(v) end)
 
@@ -18654,20 +18679,6 @@ function AR2_buildUI()
         addSlider(hmSection,"Impact Size",AR2_CFG.misc,"srvImpactSize",0.2,6,0.1)
         addSlider(hmSection,"Impact Lifetime (s)",AR2_CFG.misc,"srvImpactLife",0.2,8,0.1)
         addSlider(hmSection,"Impact Hue",AR2_CFG.misc,"srvImpactHue",0,360)
-        hmSection:AddButton({Name="Impact FX: Clear",Callback=function()
-            pcall(AR2_clearImpactFX)
-        end})
-        hmSection:AddButton({Name="Server FX: Report State",Callback=function()
-            local msg = string.format(
-                "listener=%s  impacts=%s  lastDmg=%s  lastPos=%s  fxParts=%d",
-                tostring(AR2_dmgListenerOn and "INSTALLED" or "NOT INSTALLED"),
-                tostring(AR2_netDamageCount or 0),
-                tostring(AR2_netDamageLast or "-"),
-                tostring(AR2_lastImpactPos or "-"),
-                #(AR2_impactParts or {}))
-            print("[DROIDWARE SERVER FX] " .. msg)
-            Notif.new({Title="DROIDWARE",Content=msg,Duration=9})
-        end})
         addToggle(hmSection,"Rainbow Color",AR2_CFG.hitmarker,"rainbow",function(v) AR2_CFG.hitmarker.rainbow=v AR2_markDirty() end)
         addDropdown(hmSection,"Shape",AR2_HM_SHAPE_NAMES or {"X","+","Dot","Diamond","Circle","Square"},AR2_CFG.hitmarker,"shape",function(v) AR2_CFG.hitmarker.shape=v AR2_markDirty() end)
         addSlider(hmSection,"Color Hue",AR2_CFG.hitmarker,"colorHue",0,360,function(v) AR2_CFG.hitmarker.colorHue=v end)
@@ -18755,19 +18766,6 @@ function AR2_buildUI()
         addToggle(noclipSection,"Enabled",AR2_CFG.misc,"noclip",function(v) AR2_toggleNoclip(v) end)
         addToggle(noclipSection,"Legal Resume On Release",AR2_CFG.misc,"autoResume")
         addSlider(noclipSection,"Resume Hold (s)",AR2_CFG.misc,"resumeHold",0.1,3,0.1)
-        noclipSection:AddButton({
-            Name = "Resume Now (manual)",
-            Callback = function()
-                local ok,why = AR2_legalResume()
-                Notif.new({Title="DROIDWARE",
-                    Content=(ok and "Resume: " or "Failed: ")..tostring(why),Duration=4})
-            end,
-        })
-        addToggle(noclipSection,"Block Rubberband (desyncs you)",AR2_CFG.misc,"antiRubber",function(v)
-            local ok,why = AR2_setAntiRubberband(v)
-            Notif.new({Title="DROIDWARE",
-                Content=(ok and "Rubberband: " or "Failed: ")..tostring(why),Duration=5})
-        end)
         addSlider(noclipSection,"Noclip Speed",AR2_CFG.misc,"noclipSpeed",0,500)
         addToggle(noclipSection,"Anti-Fall Stun",AR2_CFG.misc,"antiFallStun",function(v) AR2_setAntiFallStun(v) end)
         addToggle(noclipSection,"Anti Ragdoll / Stun (better)",AR2_CFG.misc,"antiRagdoll",function(v) AR2_setAntiRagdoll(v) end,"antiRagdoll")
@@ -18797,20 +18795,6 @@ function AR2_buildUI()
         addSlider(tourSection,"Standoff (studs)",AR2_CFG.misc,"tourOffset",2,40,1)
         addSlider(tourSection,"Height Above",AR2_CFG.misc,"tourHeight",-10,30,1)
         addSlider(tourSection,"Max Range",AR2_CFG.misc,"tourMaxDist",100,10000,100)
-        tourSection:AddButton({
-            Name = "Go To Next Now",
-            Callback = function()
-                local ok,why = AR2_tourGoNext()
-                Notif.new({Title="DROIDWARE",Content=tostring(why),Duration=3})
-            end,
-        })
-        tourSection:AddButton({
-            Name = "Reset Visited List",
-            Callback = function()
-                AR2_tourVisited = {}
-                Notif.new({Title="DROIDWARE",Content="Visited list cleared",Duration=3})
-            end,
-        })
 
         local flySection = movementTab:AddSection({Name="Fly",Position="right"})
         addToggle(flySection,"Enabled",AR2_CFG.misc,"fly",function(v) AR2_setFly(v) end)
@@ -19374,37 +19358,7 @@ end
             end
         end)
         enemyMorphSection:AddButton({Name="Clear All", Callback=function() pcall(AR2_enemyMorphClearAll) end})
-        enemyMorphSection:AddButton({Name="Report State", Callback=function()
-            local live = 0
-            for _ in pairs(AR2_enemyMorphs or {}) do live = live + 1 end
-            local msg = string.format("template=%s  applied=%d  live=%d  id=%s",
-                tostring(AR2_enemyMorphCache and AR2_enemyMorphCache.template and "LOADED" or "NONE"),
-                AR2_enemyMorphApplied or 0, live,
-                tostring(AR2_CFG.misc.enemyMorphId))
-            print("[DROIDWARE MORPH] " .. msg)
-            Notif.new({Title="DROIDWARE",Content=msg,Duration=9})
-        end})
 
-        local diagSection = miscTab:AddSection({Name="Diagnostics",Position="left"})
-        diagSection:AddButton({
-            Name = "Detection Check",
-            Callback = function()
-                local blob = AR2_safetyReport()
-                local first = blob:match("movers on character : [^\n]+") or "see console"
-                Notif.new({Title="DROIDWARE SAFETY",Content=first,Duration=9})
-            end,
-        })
-        diagSection:AddButton({
-            Name = "UI Build Warnings",
-            Callback = function()
-                local t = AR2_uiListErrors or {}
-                local txt = (#t == 0) and "UI built with no warnings"
-                    or ("UI warnings:\n  " .. table.concat(t, "\n  "))
-                print("[DROIDWARE] " .. txt)
-                pcall(function() setclipboard(txt) end)
-                Notif.new({Title="DROIDWARE",Content=txt,Duration=9})
-            end,
-        })
 
         local mvSection = miscTab:AddSection({Name="Vault & Interact",Position="right"})
         addToggle(mvSection,"Long Interact",AR2_CFG.misc,"interactFar")
@@ -19511,17 +19465,17 @@ end
                 Duration=4})
         end)
         addToggle(bagSection,"Hide My Real Bag",AR2_CFG.misc,"bagHideReal",function(v)
-            if AR2_CFG.misc.fakeBag then pcall(AR2_bagApply) end
+            AR2_bagApplyDebounced()
         end)
         addDropdown(bagSection,"Weld To",
             {"UpperTorso","LowerTorso","HumanoidRootPart","Head"},
             AR2_CFG.misc,"bagPart",function(v)
-            if AR2_CFG.misc.fakeBag then pcall(AR2_bagApply) end
+            AR2_bagApplyDebounced()
         end)
         bagSection:AddLabel("—————————————————")
         local function bagSlider(label, key, mn, mx)
             addSlider(bagSection, label, AR2_CFG.misc, key, mn, mx, 0.05, function()
-                if AR2_CFG.misc.fakeBag then pcall(AR2_bagApply) end
+                AR2_bagApplyDebounced()
             end)
         end
         addDropdown(bagSection,"Placement",AR2_bagPresetNames(),AR2_CFG.misc,"bagPreset",function(v)
@@ -19552,11 +19506,11 @@ end
         bagSlider("Offset Up",      "bagOffY", -3, 3)
         bagSlider("Offset Back",    "bagOffZ", -3, 3)
         addSlider(bagSection, "Scale", AR2_CFG.misc, "bagScale", 0.1, 3, 0.05, function()
-            if AR2_CFG.misc.fakeBag then pcall(AR2_bagApply) end
+            AR2_bagApplyDebounced()
         end)
         local function bagAngle(label, key)
             addSlider(bagSection, label, AR2_CFG.misc, key, -180, 180, 5, function()
-                if AR2_CFG.misc.fakeBag then pcall(AR2_bagApply) end
+                AR2_bagApplyDebounced()
             end)
         end
         bagAngle("Rotate (yaw)",  "bagYaw")
@@ -19596,11 +19550,6 @@ end
             else
                 Notif.new({Title="DROIDWARE",Content="No gun equipped, or GunBuilder unreachable",Duration=4})
             end
-        end})
-        skinSection:AddButton({Name="Rescan Skin List",Callback=function()
-            local n = AR2_listWeaponSkins(true)
-            Notif.new({Title="DROIDWARE",Content="Found "..math.max(#n-1,0).." skins -- reopen the menu to see them",Duration=5})
-            print("[DROIDWARE SKINS] " .. table.concat(n, ", "))
         end})
 
 
