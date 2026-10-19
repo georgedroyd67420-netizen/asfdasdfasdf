@@ -254,7 +254,7 @@ AR2_CFG = {
     },
     minimap = { on = false, size = 200, x = 10, y = 50 },
     misc = {
-        freecam = false, freecamSpeed = 60,
+        freecam = false, freecamSpeed = 60, spectate = false, specDist = 10,
         hairColor = 1, skinColor = 1,
         infJump = false, noclip = false, noclipSpeed = 90, carNoclip = false,
         noJumpCooldown = false, jumpPower = 50, jumpPowerOn = false,
@@ -14356,11 +14356,18 @@ end
 function AR2_dumpCharFields()
     local gc = AR2_resolveGameCharacter()
     if type(gc) ~= "table" then warn("[sprint] no game character") return end
+    -- NOTE: this used to filter to boolean|number, which hid the two fields
+    -- that matter most -- MoveState (string) and MoveVector (Vector3).
     local out = { "== GAME CHARACTER FIELDS ==" }
     for k, v in pairs(gc) do
         local t = typeof(v)
-        if t == "boolean" or t == "number" then
-            out[#out+1] = ("  %s = %s (%s)"):format(tostring(k), tostring(v), t)
+        if t == "boolean" or t == "number" or t == "string"
+           or t == "Vector3" or t == "CFrame" or t == "EnumItem" then
+            local shown = tostring(v)
+            if #shown > 70 then shown = shown:sub(1, 70) .. "..." end
+            out[#out+1] = ("  %s = %s (%s)"):format(tostring(k), shown, t)
+        elseif t == "Instance" then
+            out[#out+1] = ("  %s = Instance<%s> '%s'"):format(tostring(k), v.ClassName, v.Name)
         end
     end
     table.sort(out)
@@ -19120,7 +19127,227 @@ AR2_fcConn     = nil
 AR2_fcInputs   = nil
 AR2_fcCF       = nil
 AR2_fcSavedType, AR2_fcSavedSubject = nil, nil
-AR2_fcKeys     = {}
+AR2_fcSavedMouse = nil
+AR2_FC_ACTION  = "AR2_FreecamSink"
+
+-- Keys the character must NOT receive while freecam is flying. We sink them at
+-- the ContextActionService layer instead of touching character state, so the
+-- body simply gets no input -- nothing on the character object is written.
+AR2_FC_SINK_KEYS = {
+    Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
+    Enum.KeyCode.Space, Enum.KeyCode.LeftControl, Enum.KeyCode.Q,
+    Enum.KeyCode.LeftShift, Enum.KeyCode.C,
+}
+
+-- Item name -> {Type, EquipSlot} from the game's own ItemData table.
+-- Built once and cached (ItemData is ~2500 entries).
+AR2_itemTypeCache = nil
+function AR2_itemTypeOf(itemName)
+    if not itemName or itemName == "" then return nil end
+    if not AR2_itemTypeCache then
+        AR2_itemTypeCache = {}
+        local data = AR2_findItemData and AR2_findItemData() or nil
+        if type(data) == "table" then
+            pcall(function()
+                for k, v in pairs(data) do
+                    if type(v) == "table" then
+                        local nm = rawget(v, "ItemName")
+                        if (nm == nil or nm == "") and type(k) == "string" then nm = k end
+                        if type(nm) == "string" and nm ~= "" then
+                            AR2_itemTypeCache[nm] = {
+                                t = rawget(v, "Type") or "?",
+                                s = rawget(v, "EquipSlot") or "?",
+                            }
+                        end
+                    end
+                end
+            end)
+        end
+    end
+    return AR2_itemTypeCache[itemName]
+end
+
+-- ===================== SPECTATE ==========================================
+-- Orbits a chosen player, camera facing them, with a live info panel.
+-- Everything here is READ-ONLY: it reads player/model state and moves our own
+-- camera. Nothing is written to any character.
+AR2_specOn     = false
+AR2_specIdx    = 0
+AR2_specTarget = nil
+AR2_specConn   = nil
+AR2_specDraws  = nil
+AR2_CFG = AR2_CFG or {}
+
+local AR2_COMPASS = {"N","NE","E","SE","S","SW","W","NW"}
+local function AR2_bearing(lv)
+    local deg = math.deg(math.atan2(lv.X, lv.Z)) % 360
+    return AR2_COMPASS[(math.floor((deg + 22.5) / 45) % 8) + 1], deg
+end
+
+-- KD is not at a known field, so look for it rather than assume a name.
+-- Checks Player attributes, then a leaderstats folder. Read-only.
+function AR2_playerKD(plr)
+    if not plr then return nil end
+    local k, d
+    pcall(function()
+        for name, v in pairs(plr:GetAttributes()) do
+            if type(v) == "number" then
+                local l = name:lower()
+                if not k and (l == "kills" or l == "kill" or l:find("kill")) then k = v end
+                if not d and (l == "deaths" or l == "death" or l:find("death")) then d = v end
+                if l == "kd" or l == "kdr" then return end
+            end
+        end
+    end)
+    pcall(function()
+        local ls = plr:FindFirstChild("leaderstats")
+        if not ls then return end
+        for _, v in ipairs(ls:GetChildren()) do
+            local l = v.Name:lower()
+            if v:IsA("ValueBase") then
+                if not k and l:find("kill") then k = v.Value end
+                if not d and l:find("death") then d = v.Value end
+            end
+        end
+    end)
+    if k == nil and d == nil then return nil end
+    k, d = k or 0, d or 0
+    local ratio = (d > 0) and (k / d) or k
+    return ("%d / %d  (%.2f)"):format(k, d, ratio)
+end
+
+function AR2_specList()
+    local out = {}
+    for _, e in ipairs(AR2_api.players()) do
+        if not e.isLocal and e.root then out[#out+1] = e end
+    end
+    table.sort(out, function(a, b) return tostring(a.name) < tostring(b.name) end)
+    return out
+end
+
+local function AR2_specMakeDraws()
+    if AR2_specDraws or not AR2_hasDrawing then return end
+    AR2_specDraws = {}
+    for i = 1, 7 do
+        local t = Drawing.new("Text")
+        t.Size, t.Center, t.Outline, t.Visible = 15, false, true, false
+        t.Color = Color3.fromRGB(255, 255, 255)
+        AR2_specDraws[i] = t
+    end
+end
+local function AR2_specHideDraws()
+    if not AR2_specDraws then return end
+    for _, t in ipairs(AR2_specDraws) do t.Visible = false end
+end
+
+function AR2_specStep(dir)
+    local list = AR2_specList()
+    if #list == 0 then AR2_specTarget = nil return end
+    AR2_specIdx = ((AR2_specIdx + dir - 1) % #list) + 1
+    AR2_specTarget = list[AR2_specIdx]
+end
+
+function AR2_specSet(on)
+    on = on and true or false
+    if on == AR2_specOn then return end
+    AR2_specOn = on
+
+    if not on then
+        if AR2_specConn then pcall(function() AR2_specConn:Disconnect() end) AR2_specConn = nil end
+        AR2_specHideDraws()
+        AR2_specTarget = nil
+        -- hand control back; freecam owns the camera if it is still on
+        if not AR2_fcOn then
+            pcall(function()
+                local cam = AR2_Workspace.CurrentCamera
+                cam.CameraType = AR2_fcSavedType or Enum.CameraType.Custom
+                local ch = AR2_LocalPlayer and AR2_LocalPlayer.Character
+                cam.CameraSubject = (ch and ch:FindFirstChildOfClass("Humanoid")) or cam.CameraSubject
+                AR2_UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            end)
+        end
+        return
+    end
+
+    AR2_specMakeDraws()
+    if not AR2_specTarget then AR2_specStep(1) end
+    pcall(function()
+        local cam = AR2_Workspace.CurrentCamera
+        if not AR2_fcOn then
+            AR2_fcSavedType = AR2_fcSavedType or cam.CameraType
+            AR2_fcSavedSubject = AR2_fcSavedSubject or cam.CameraSubject
+        end
+        cam.CameraType = Enum.CameraType.Scriptable
+    end)
+
+    AR2_specConn = AR2_RunService.RenderStepped:Connect(function()
+        if not AR2_specOn then return end
+        local cam = AR2_Workspace.CurrentCamera
+        if not cam then return end
+
+        local t = AR2_specTarget
+        -- target left / died -> advance
+        if not (t and t.root and t.root.Parent) then
+            AR2_specStep(1)
+            t = AR2_specTarget
+            if not t then AR2_specHideDraws() return end
+        end
+        -- refresh the entity so position/gun/health are live
+        for _, e in ipairs(AR2_specList()) do
+            if e.name == t.name then t = e AR2_specTarget = e break end
+        end
+        local root = t.root
+        if not (root and root.Parent) then return end
+
+        local lv  = root.CFrame.LookVector
+        local dist = tonumber(AR2_CFG.misc.specDist) or 10
+        -- sit in FRONT of them, looking back -> you see their face
+        local camPos = root.Position + lv * dist + Vector3.new(0, 2.5, 0)
+        pcall(function() cam.CFrame = CFrame.lookAt(camPos, root.Position + Vector3.new(0, 1, 0)) end)
+
+        if not AR2_specDraws then return end
+        local myPos = AR2_localPosition and AR2_localPosition() or camPos
+        local bear = AR2_bearing(lv)
+        -- is he looking at me?
+        local toMe = (myPos - root.Position)
+        local facing = "away"
+        if toMe.Magnitude > 1e-3 then
+            local dot = lv.Unit:Dot(toMe.Unit)
+            facing = (dot > 0.80) and "AT YOU" or (dot > 0.3 and "toward you" or "away")
+        end
+        local hp = "?"
+        pcall(function()
+            local h = t.model and t.model:FindFirstChildOfClass("Humanoid")
+            if h then hp = ("%d/%d"):format(math.floor(h.Health), math.floor(h.MaxHealth)) end
+        end)
+        local ms = "?"
+        pcall(function() ms = AR2_animState(t.model, "MoveState", "?") end)
+
+        local rows = {
+            ("SPECTATING  [%d/%d]"):format(AR2_specIdx, math.max(#AR2_specList(), 1)),
+            ("Name     %s"):format(tostring(t.name)),
+            (function()
+                if not t.item then return "Gun      unarmed" end
+                local ti = AR2_itemTypeOf(t.item)
+                if ti then return ("Gun      %s  (%s / %s)"):format(tostring(t.item), tostring(ti.t), tostring(ti.s)) end
+                return ("Gun      %s"):format(tostring(t.item))
+            end)(),
+            ("Distance %d studs"):format(math.floor((root.Position - myPos).Magnitude)),
+            ("Facing   %s  (%s)"):format(bear, facing),
+            ("Health   %s      State %s"):format(hp, tostring(ms)),
+            ("K/D      %s"):format(AR2_playerKD(t.player) or "-- (not exposed)"),
+        }
+        for i, txt in ipairs(rows) do
+            local d = AR2_specDraws[i]
+            if d then
+                d.Text = txt
+                d.Position = Vector2.new(24, 140 + (i - 1) * 18)
+                d.Color = (i == 1) and Color3.fromRGB(255, 170, 60) or Color3.fromRGB(235, 235, 240)
+                d.Visible = true
+            end
+        end
+    end)
+end
 
 function AR2_freecamSet(on)
     on = on and true or false
@@ -19130,26 +19357,46 @@ function AR2_freecamSet(on)
     local cam = AR2_Workspace.CurrentCamera
     if not cam then AR2_fcOn = false return end
 
+    local CAS = game:GetService("ContextActionService")
+
     if not on then
         if AR2_fcConn then pcall(function() AR2_fcConn:Disconnect() end) AR2_fcConn = nil end
         if AR2_fcInputs then
             for _, c in ipairs(AR2_fcInputs) do pcall(function() c:Disconnect() end) end
             AR2_fcInputs = nil
         end
+        pcall(function() CAS:UnbindAction(AR2_FC_ACTION) end)
         pcall(function()
             cam.CameraType    = AR2_fcSavedType or Enum.CameraType.Custom
-            cam.CameraSubject = AR2_fcSavedSubject
-            AR2_UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+            -- if the saved subject died while we were flying, fall back to the
+            -- live humanoid so the camera doesn't come back detached
+            local subj = AR2_fcSavedSubject
+            if not (subj and subj.Parent) then
+                local ch = AR2_LocalPlayer and AR2_LocalPlayer.Character
+                subj = ch and ch:FindFirstChildOfClass("Humanoid") or subj
+            end
+            cam.CameraSubject = subj
+            AR2_UserInputService.MouseBehavior = AR2_fcSavedMouse or Enum.MouseBehavior.Default
         end)
-        AR2_fcKeys = {}
+        AR2_fcSavedMouse = nil
         return
     end
 
     AR2_fcSavedType    = cam.CameraType
     AR2_fcSavedSubject = cam.CameraSubject
     AR2_fcCF           = cam.CFrame
+    AR2_fcSavedMouse   = AR2_UserInputService.MouseBehavior
 
     pcall(function() cam.CameraType = Enum.CameraType.Scriptable end)
+
+    -- swallow movement input so the character stands still instead of running
+    -- around blind while you fly
+    pcall(function()
+        CAS:BindActionAtPriority(AR2_FC_ACTION,
+            function() return Enum.ContextActionResult.Sink end,
+            false, Enum.ContextActionPriority.High.Value,
+            unpack(AR2_FC_SINK_KEYS))
+    end)
 
     local yaw, pitch = 0, 0
     do
@@ -19160,19 +19407,7 @@ function AR2_freecamSet(on)
 
     AR2_fcInputs = {}
 
-    AR2_fcInputs[#AR2_fcInputs + 1] = AR2_UserInputService.InputBegan:Connect(function(i, gpe)
-        if gpe then return end
-        if i.UserInputType == Enum.UserInputType.Keyboard then
-            AR2_fcKeys[i.KeyCode] = true
-        end
-    end)
-
-    AR2_fcInputs[#AR2_fcInputs + 1] = AR2_UserInputService.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.Keyboard then
-            AR2_fcKeys[i.KeyCode] = nil
-        end
-    end)
-
+    -- scroll wheel still adjusts speed
     AR2_fcInputs[#AR2_fcInputs + 1] = AR2_UserInputService.InputChanged:Connect(function(i, gpe)
         if gpe then return end
         if i.UserInputType == Enum.UserInputType.MouseWheel then
@@ -19186,7 +19421,13 @@ function AR2_freecamSet(on)
         local c = AR2_Workspace.CurrentCamera
         if not c then return end
 
-        pcall(function() AR2_UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition end)
+        -- only re-assert the lock if something actually changed it, so the hub
+        -- menu stays clickable instead of being re-locked every frame
+        if AR2_UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCurrentPosition then
+            pcall(function()
+                AR2_UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+            end)
+        end
 
         local d = AR2_UserInputService:GetMouseDelta()
         yaw   = yaw - d.X * 0.0045
@@ -19195,19 +19436,19 @@ function AR2_freecamSet(on)
         local rot = CFrame.fromEulerAnglesYXZ(pitch, yaw, 0)
 
         local speed = tonumber(AR2_CFG.misc.freecamSpeed) or 60
-        if AR2_fcKeys[Enum.KeyCode.LeftShift] then speed = speed * 3 end
+        -- IsKeyDown, not a key table: still works when the keys are sunk
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then speed = speed * 3 end
 
         local move = Vector3.new(0, 0, 0)
-        if AR2_fcKeys[Enum.KeyCode.W] then move = move + Vector3.new(0, 0, -1) end
-        if AR2_fcKeys[Enum.KeyCode.S] then move = move + Vector3.new(0, 0,  1) end
-        if AR2_fcKeys[Enum.KeyCode.A] then move = move + Vector3.new(-1, 0, 0) end
-        if AR2_fcKeys[Enum.KeyCode.D] then move = move + Vector3.new( 1, 0, 0) end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + Vector3.new(0, 0, -1) end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move + Vector3.new(0, 0,  1) end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move + Vector3.new(-1, 0, 0) end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + Vector3.new( 1, 0, 0) end
 
         local vert = 0
-        if AR2_fcKeys[Enum.KeyCode.Space] then vert = vert + 1 end
-        if AR2_fcKeys[Enum.KeyCode.LeftControl] or AR2_fcKeys[Enum.KeyCode.Q] then
-            vert = vert - 1
-        end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.Space) then vert = vert + 1 end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
+           or AR2_UserInputService:IsKeyDown(Enum.KeyCode.Q) then vert = vert - 1 end
 
         local pos = AR2_fcCF.Position
         if move.Magnitude > 0 then
@@ -19228,6 +19469,17 @@ end
 
         addToggle(cameraSection,"Freecam",AR2_CFG.misc,"freecam",function(v) AR2_freecamSet(v) end,"freecam")
         addSlider(cameraSection,"Freecam Speed",AR2_CFG.misc,"freecamSpeed",5,500,5)
+
+        addToggle(cameraSection,"Spectate Player",AR2_CFG.misc,"spectate",function(v) AR2_specSet(v) end)
+        addSlider(cameraSection,"Spectate Distance",AR2_CFG.misc,"specDist",3,40,1)
+        cameraSection:AddButton({Name="< Last Player",Callback=function()
+            AR2_specStep(-1)
+            if not AR2_specOn then AR2_CFG.misc.spectate = true AR2_specSet(true) end
+        end})
+        cameraSection:AddButton({Name="Next Player >",Callback=function()
+            AR2_specStep(1)
+            if not AR2_specOn then AR2_CFG.misc.spectate = true AR2_specSet(true) end
+        end})
 
         addToggle(cameraSection,"FOV Zoom (hold RMB)",AR2_CFG.misc,"fovZoom",function(v) AR2_toggleFOVZoom(v) end)
         addSlider(cameraSection,"Zoom FOV",AR2_CFG.misc,"zoomFOV",10,100,1,function(v)
