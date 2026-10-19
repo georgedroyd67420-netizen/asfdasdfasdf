@@ -8430,7 +8430,7 @@ if AR2_success and AR2_Bullets and AR2_Bullets.Fire then
         return base
     end
 
-    AR2_Bullets.Fire = function(self, playerController, weaponInstance, weaponData, origin, direction, shotId)
+    local AR2_newBulletsFire = function(self, playerController, weaponInstance, weaponData, origin, direction, shotId)
         AR2_lastFireParams = {
             self = self,
             pc   = playerController,
@@ -8806,6 +8806,23 @@ if AR2_success and AR2_Bullets and AR2_Bullets.Fire then
             return AR2_originalFireFunction(self, playerController, weaponInstance, weaponData, origin, direction, shotId)
         end
         return result
+    end
+
+    -- The Bullets module table is readonly in some environments (and under
+    -- Luraph), so a plain `AR2_Bullets.Fire = ...` throws "attempt to modify a
+    -- readonly table" and silent aim silently never installs. Unlock, rawset,
+    -- relock -- the same pattern the always-suppressed hook already uses.
+    local AR2_fireHookOk = pcall(function()
+        if AR2_CAP.setreadonly then pcall(setreadonly, AR2_Bullets, false) end
+        rawset(AR2_Bullets, "Fire", AR2_newBulletsFire)
+    end)
+    pcall(function() if AR2_CAP.setreadonly then setreadonly(AR2_Bullets, true) end end)
+    if not AR2_fireHookOk then
+        -- last resort: direct assignment (older executors without setreadonly)
+        AR2_fireHookOk = pcall(function() AR2_Bullets.Fire = AR2_newBulletsFire end)
+    end
+    if not AR2_fireHookOk then
+        warn("[ORIGIN] could not install Bullets.Fire hook -- silent aim/origin adjust disabled")
     end
 end
 
