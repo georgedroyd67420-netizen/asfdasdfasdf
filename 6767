@@ -1,3 +1,28 @@
+-- ===================== SINGLE-INSTANCE GUARD =============================
+-- Running the hub twice (a duplicated loadstring, or re-executing by hand)
+-- used to start a SECOND full hub beside the first: every RenderStepped and
+-- Heartbeat loop doubled, and the two Bullets.Fire installs captured each
+-- other as "the original" and fought, which silently killed HBE.
+-- Tear the previous instance down before building a new one.
+if getgenv then
+    local g = getgenv()
+    if g.ORIGIN_HUB_ACTIVE then
+        warn("[ORIGIN] already running -- unloading the previous instance first")
+        pcall(function()
+            local w = g.OriginHUB_Window
+            if w then
+                if type(w.Unload)  == "function" then w:Unload()
+                elseif type(w.Destroy) == "function" then w:Destroy() end
+            end
+        end)
+        -- drop references so the old UI/loops can be collected
+        pcall(function() g.OriginHUB_Window = nil g.OriginHUB_NL = nil end)
+        task.wait(0.15)
+    end
+    g.ORIGIN_HUB_ACTIVE = true
+end
+
+
 AR2_antidetect = { disabled = 0, hooked = false }
 pcall(function()
     local ScriptError = game:GetService("ScriptContext").Error
@@ -311,7 +336,7 @@ AR2_CFG = {
         forceSight = false, sightName = "None", sightWeld = true, sightScale = 1,
         sightX = 0, sightY = 0, sightZ = 0, sightAuto = true,
         sightPitch = 0, sightYaw = 0, sightRoll = 0,
-        antiRagdoll = false, adsWhileSprint = false, forceSprint = false, sprintOmni = false,
+        antiRagdoll = false, adsWhileSprint = false, forceSprint = false,
         antiRubber = false, resumeHold = 0.6, autoResume = true, cosLearn = false,
         enemyMorphMax = 6, enemyMorphPartCap = 60, ownedIndex = 1,
         enemyMorphNear = 18, enemyMorphFar = 900, enemyMorphNoHide = false,
@@ -14367,22 +14392,14 @@ function AR2_setForceSprint(on)
             pcall(function() gc.RunningInput = true end)
         end
 
-        -- OMNIDIRECTIONAL (opt-in). Measured from a live probe: MoveState is
-        -- "Running" iff MoveVector.Z < 0 (forward / forward-diagonal). Pure
-        -- strafe (Z==0) and backward (Z>0) resolve to "Walking" -- the weapon
-        -- being equipped has nothing to do with it.
-        -- moveStateSolve re-assigns MoveState every physics step, so we
-        -- re-assert it after. This writes ONE real field to ONE real value the
-        -- game itself uses; it does not invent members.
-        if AR2_CFG.misc.sprintOmni then
-            local mv = rawget(gc, "MoveVector")
-            local ms = rawget(gc, "MoveState")
-            -- only while actually moving, and only to upgrade Walking->Running.
-            -- never touch Swimming/Falling/Vaulting/etc.
-            if ms == "Walking" and typeof(mv) == "Vector3" and mv.Magnitude > 0.1 then
-                pcall(function() gc.MoveState = "Running" end)
-            end
-        end
+        -- NOTE: an earlier build re-asserted gc.MoveState = "Running" here to get
+        -- omnidirectional sprint. Do NOT bring that back. moveStateSolve rewrites
+        -- MoveState every physics step, so the override flipped the state 60x a
+        -- second; MoveState fires MoveStateChanged listeners and feeds
+        -- NetworkedStateSync, so it spammed events/replication (network lag with
+        -- no FPS drop) AND the solver overwrote it anyway, so it never worked.
+        -- Real omni sprint needs moveStateSolve itself hooked -- that needs the
+        -- Characters module decompiled first.
     end)
     return true, "on"
 end
@@ -18640,7 +18657,6 @@ function AR2_buildUI()
         local sprintSection = combatTab:AddSection({Name="Sprint",Position="right"})
         addToggle(sprintSection,"ADS While Sprinting",AR2_CFG.misc,"adsWhileSprint",function(v) AR2_setAdsWhileSprint(v) end)
         addToggle(sprintSection,"Force Sprint (no ADS needed)",AR2_CFG.misc,"forceSprint",function(v) AR2_setForceSprint(v) end)
-        addToggle(sprintSection,"  └ Omnidirectional (strafe/back) — may rubberband",AR2_CFG.misc,"sprintOmni")
         sprintSection:AddButton({
             Name = "Dump Character Fields (find sprint gate)",
             Callback = function()
