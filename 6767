@@ -336,7 +336,7 @@ AR2_CFG = {
         forceSight = false, sightName = "None", sightWeld = true, sightScale = 1,
         sightX = 0, sightY = 0, sightZ = 0, sightAuto = true,
         sightPitch = 0, sightYaw = 0, sightRoll = 0,
-        antiRagdoll = false, adsWhileSprint = false, forceSprint = false,
+        antiRagdoll = false, adsWhileSprint = false, forceSprint = false, omniSprint = false, omniSpeed = 20,
         antiRubber = false, resumeHold = 0.6, autoResume = true, cosLearn = false,
         enemyMorphMax = 6, enemyMorphPartCap = 60, ownedIndex = 1,
         enemyMorphNear = 18, enemyMorphFar = 900, enemyMorphNoHide = false,
@@ -497,6 +497,7 @@ function AR2_isLibraryGui() return false end
 function AR2_setAntiRagdoll() end
 function AR2_setAdsWhileSprint() end
 function AR2_setForceSprint() return false end
+function AR2_setOmni() return false end
 function AR2_dumpCharFields() end
 function AR2_setNameSpoof() end
 function AR2_cosDress() return false end
@@ -876,6 +877,7 @@ function AR2_applyLoadedConfig()
         AR2_setAntiRagdoll(AR2_CFG.misc.antiRagdoll)
         AR2_setAdsWhileSprint(AR2_CFG.misc.adsWhileSprint)
         AR2_setForceSprint(AR2_CFG.misc.forceSprint)
+        AR2_setOmni(AR2_CFG.misc.omniSprint)           -- moveStateSolve hook
         AR2_setVehicleEquip(AR2_CFG.weapon.vehicleEquip)
         AR2_setRemoveDoors(AR2_CFG.visuals.removeDoors)
         AR2_setRemoveSunRays(AR2_CFG.visuals.removeSunRays)
@@ -12828,6 +12830,42 @@ function AR2_tp.saveWaypoint()
     return true
 end
 
+-- Remember where we last died so "TP To Death Spot" can take us back.
+-- Captured on Humanoid.Died, before the corpse/character is cleaned up.
+AR2_lastDeathPos  = nil
+AR2_lastDeathTime = 0
+local function AR2_watchDeath(char)
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+                or char:WaitForChild("Humanoid", 10)
+    if not hum then return end
+    hum.Died:Connect(function()
+        pcall(function()
+            local root = char:FindFirstChild("HumanoidRootPart")
+                      or char:FindFirstChild("Torso")
+                      or char.PrimaryPart
+            if root then
+                AR2_lastDeathPos  = root.Position
+                AR2_lastDeathTime = os.clock()
+            end
+        end)
+    end)
+end
+pcall(function()
+    if AR2_LocalPlayer.Character then AR2_watchDeath(AR2_LocalPlayer.Character) end
+    AR2_LocalPlayer.CharacterAdded:Connect(AR2_watchDeath)
+end)
+
+function AR2_tpToDeathSpot()
+    if not AR2_lastDeathPos then return false, "no death recorded yet" end
+    local ok = pcall(function()
+        AR2_tp.toPosition(AR2_lastDeathPos + Vector3.new(0, 4, 0), "death spot")
+    end)
+    if not ok then return false, "teleport failed" end
+    local ago = math.floor(os.clock() - AR2_lastDeathTime)
+    return true, ("death spot (%ds ago)"):format(ago)
+end
+
 AR2_respawnTP = false
 function AR2_toggleRespawnTP(enabled)
     AR2_respawnTP = enabled
@@ -14355,6 +14393,9 @@ AR2_adsConn = nil
 -- ADS or which way you are moving.
 AR2_sprintConn  = nil
 AR2_sprintHeld  = {}
+AR2_omniHeld    = false
+AR2_omniCombatUntil = 0
+AR2_omniPrevFire   = false
 -- RunningInput is the sprint *input* flag -- the ONLY field the hub has ever
 -- written for sprint, and the only one known to be safe.
 --
@@ -14366,16 +14407,29 @@ AR2_sprintHeld  = {}
 -- Fields" button to find the real direction gate first, then add it by name.
 -- (removed: speculative sprint-gate field list; see note above)
 
+-- Set weapon posture the way the GAME does. Writing AtEaseInput directly only
+-- flips the flag and leaves the weapon's action state lowered, so the flag says
+-- "up" while the gun is still down -- movement stops AND the shot is rejected.
+-- RunInputActionIf is the character's own setter (confirmed on its metatable);
+-- the decompile uses it as RunInputActionIf("Sprint", RunningInput, false).
+function AR2_setAtEase(gc, on)
+    on = on and true or false
+    local ok = pcall(function() gc:RunInputActionIf("AtEase", true, on) end)
+    if not ok then pcall(function() gc.AtEaseInput = on end) end   -- fallback
+    return ok
+end
+
 function AR2_setForceSprint(on)
     AR2_CFG.misc.forceSprint = on and true or false
 
     if AR2_sprintConn then AR2_sprintConn:Disconnect() AR2_sprintConn = nil end
 
-    if not AR2_CFG.misc.forceSprint then
+    if not (AR2_CFG.misc.forceSprint or AR2_CFG.misc.omniSprint) then
         pcall(function()
             local gc = AR2_resolveGameCharacter()
             if type(gc) ~= "table" then return end
             pcall(function() gc.RunningInput = false end)
+            if AR2_omniHeld then AR2_setAtEase(gc, false) AR2_omniHeld = false end
             for f in pairs(AR2_sprintHeld) do pcall(function() gc[f] = false end) end
         end)
         AR2_sprintHeld = {}
@@ -14383,24 +14437,189 @@ function AR2_setForceSprint(on)
     end
 
     AR2_sprintConn = AR2_RunService.Heartbeat:Connect(function()
-        if not AR2_CFG.misc.forceSprint then return end
+        if not (AR2_CFG.misc.forceSprint or AR2_CFG.misc.omniSprint) then return end
         local gc = AR2_resolveGameCharacter()
         if type(gc) ~= "table" then return end
 
         -- pin the input every frame: survives respawn, menus, and ADS release.
-        if rawget(gc, "RunningInput") ~= true then
+        if AR2_CFG.misc.forceSprint and rawget(gc, "RunningInput") ~= true then
             pcall(function() gc.RunningInput = true end)
         end
 
-        -- NOTE: an earlier build re-asserted gc.MoveState = "Running" here to get
-        -- omnidirectional sprint. Do NOT bring that back. moveStateSolve rewrites
-        -- MoveState every physics step, so the override flipped the state 60x a
-        -- second; MoveState fires MoveStateChanged listeners and feeds
-        -- NetworkedStateSync, so it spammed events/replication (network lag with
-        -- no FPS drop) AND the solver overwrote it anyway, so it never worked.
-        -- Real omni sprint needs moveStateSolve itself hooked -- that needs the
-        -- Characters module decompiled first.
+        -- Omnidirectional movement is NOT done here any more.
+        --
+        -- The old approach forced AtEaseInput (lowered weapon posture) while
+        -- moving. That really did unlock every direction, but a lowered weapon
+        -- cannot fire, and every scheme to release posture on the fire input
+        -- either ate the shot or stopped the movement.
+        --
+        -- The actual gate was found by hooking the game's own solver. See
+        -- AR2_setOmni below: Configs.Character.moveStateSolve decides the move
+        -- state, and the sprint flag it receives (arg 1) comes through FALSE on
+        -- lateral input only while a weapon is equipped. Promoting the solver's
+        -- return value is upstream of all of it and touches no input fields, so
+        -- firing, aiming and reloading are completely unaffected.
     end)
+    return true, "on"
+end
+
+-- OMNIDIRECTIONAL MOVEMENT -- full speed in every direction, gun equipped.
+--
+-- ReplicatedStorage.Client.Configs.Character.moveStateSolve (line 146, 6 params)
+-- returns TWO values:
+--   ret1 -> becomes Character.MoveState   (animation + crosshair spring)
+--   ret2 -> the key used to index MoveSpeeds (Walking=16, Running=24)
+-- Overriding only ret1 gives the run animation at walk speed -- measured. Both
+-- must be promoted for the game's own movement code to apply 24.
+--
+-- Only plain grounded "Walking" is promoted; Crouching, Swimming,
+-- SprintSwimming, Climbing, Vaulting, Sitting and Falling pass straight through
+-- so water, ladders, vaults and crouch keep working.
+--
+-- KNOWN LIMIT: the server independently rejects sustained lateral movement at
+-- 24 and will occasionally snap you back about a second of travel. Measured
+-- snap sizes 17-27 studs ~= 1s at full speed. That is server-authoritative and
+-- cannot be bypassed from the client; holding RunningInput to make the
+-- replicated state self-consistent made no difference to the rate.
+AR2_omniCfg      = AR2_omniCfg or nil     -- the Configs.Character table
+AR2_omniOrig     = AR2_omniOrig or nil    -- original moveStateSolve
+AR2_omniInstalled = AR2_omniInstalled or false
+
+local function AR2_findCharConfig()
+    if AR2_omniCfg then return AR2_omniCfg end
+    local cfg
+    pcall(function()
+        cfg = require(AR2_ReplicatedStorage:WaitForChild("Client", 10)
+            :WaitForChild("Configs", 10)
+            :WaitForChild("Character", 10))
+    end)
+    if type(cfg) ~= "table" or type(rawget(cfg, "moveStateSolve")) ~= "function" then
+        cfg = nil
+        if type(getgc) == "function" then
+            local objs
+            pcall(function() objs = getgc(true) end)
+            if type(objs) == "table" then
+                for i = 1, #objs do
+                    local o = objs[i]
+                    if type(o) == "table" then
+                        local v
+                        if pcall(function() v = rawget(o, "moveStateSolve") end)
+                           and type(v) == "function" then
+                            cfg = o
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+    AR2_omniCfg = cfg
+    return cfg
+end
+
+function AR2_setOmni(on)
+    AR2_CFG.misc.omniSprint = on and true or false
+
+    -- Install the hook once, then just flip the config flag. Re-installing
+    -- would stack wrappers, and a stacked wrapper holding a stale original is
+    -- exactly what made HBE intermittent before.
+    if AR2_omniInstalled then
+        if not AR2_CFG.misc.omniSprint and AR2_omniRestoreSpeed then
+            pcall(AR2_omniRestoreSpeed)
+        end
+        return true, AR2_CFG.misc.omniSprint and "on" or "off"
+    end
+    if not AR2_CFG.misc.omniSprint then return true, "off" end
+
+    local cfg = AR2_findCharConfig()
+    if not cfg then
+        warn("[ORIGIN] omni: could not find Configs.Character -- omni movement unavailable")
+        AR2_CFG.misc.omniSprint = false
+        return false, "no config"
+    end
+
+    AR2_omniOrig = rawget(cfg, "moveStateSolve")
+    local orig = AR2_omniOrig
+
+    -- Speed dial. MoveSpeeds is on this same table and the solver's ret2 is the
+    -- key into it, so writing MoveSpeeds.Running inside the wrapper changes the
+    -- speed the game applies on that very frame.
+    --
+    -- Arg 1 is the game's own sprint flag (bool1 and bool2 and RunningInput).
+    -- When it is TRUE the game already grants Running and the server accepts
+    -- 24, so we leave the speed alone and don't override at all. We only clamp
+    -- to omniSpeed on the frames where WE are the reason it is running -- i.e.
+    -- the lateral/backward movement the server dislikes. Forward sprint keeps
+    -- its stock 24.
+    local SPEEDS = rawget(cfg, "MoveSpeeds")
+    AR2_omniBaseRun = tonumber(SPEEDS and SPEEDS.Running) or 24
+
+    local function omniSetRun(v)
+        if type(SPEEDS) ~= "table" then return end
+        if rawget(SPEEDS, "Running") ~= v then
+            pcall(function() rawset(SPEEDS, "Running", v) end)
+        end
+    end
+    AR2_omniRestoreSpeed = function() omniSetRun(AR2_omniBaseRun) end
+
+    -- shared decision, used by both install paths below
+    local function omniDecide(sprintFlag, a, b)
+        if not AR2_CFG.misc.omniSprint then
+            omniSetRun(AR2_omniBaseRun)
+            return a, b
+        end
+        -- game already says sprint: full speed, hands off
+        if sprintFlag then
+            omniSetRun(AR2_omniBaseRun)
+            return a, b
+        end
+        if a == "Walking" and b == "Walking" then
+            local gc = AR2_resolveGameCharacter()
+            if type(gc) == "table" then
+                local mv = rawget(gc, "MoveVector")
+                if typeof(mv) == "Vector3" and mv.Magnitude > 0.05 then
+                    omniSetRun(math.clamp(tonumber(AR2_CFG.misc.omniSpeed) or 20, 16, 24))
+                    return "Running", "Running"
+                end
+            end
+        end
+        omniSetRun(AR2_omniBaseRun)
+        return a, b
+    end
+    AR2_omniDecide = omniDecide
+
+    local function omniWrapper(sprintFlag, ...)
+        local a, b = orig(sprintFlag, ...)
+        return omniDecide(sprintFlag, a, b)
+    end
+
+    local wasRO = false
+    if AR2_CAP.isreadonly then pcall(function() wasRO = isreadonly(cfg) and true or false end) end
+    if AR2_CAP.setreadonly then pcall(setreadonly, cfg, false) end
+    local ok = pcall(function() rawset(cfg, "moveStateSolve", omniWrapper) end)
+    if wasRO and AR2_CAP.setreadonly then pcall(setreadonly, cfg, true) end
+
+    local now
+    pcall(function() now = rawget(cfg, "moveStateSolve") end)
+
+    if not (ok and now == omniWrapper) and type(hookfunction) == "function" then
+        ok = pcall(function()
+            local old
+            old = hookfunction(orig, function(sprintFlag, ...)
+                local a, b = old(sprintFlag, ...)
+                return omniDecide(sprintFlag, a, b)
+            end)
+        end)
+        now = ok and omniWrapper or nil
+    end
+
+    if not (ok and now == omniWrapper) then
+        warn("[ORIGIN] omni: hook failed -- Configs.Character not writable")
+        AR2_CFG.misc.omniSprint = false
+        return false, "hook failed"
+    end
+
+    AR2_omniInstalled = true
     return true, "on"
 end
 
@@ -18628,7 +18847,6 @@ function AR2_buildUI()
         addToggle(silentAimSection,"Show Lock Line",AR2_CFG.magicAim,"showLockLine",function(v) AR2_magicUpdate() end)
         addToggle(silentAimSection,"Auto Bullet Speed",AR2_CFG.magicAim,"autoSpeed")
         addToggle(silentAimSection,"Compensate Drop",AR2_CFG.magicAim,"dropComp")
-        addSlider(silentAimSection,"Manual Bullet Speed",AR2_CFG.magicAim,"bulletSpeed",0,3000)
         addToggle(silentAimSection,"Origin Shift (Magic Bullet)",AR2_CFG.magicAim,"originShift")
         addSlider(silentAimSection,"Origin Radius (2 = best reg)",AR2_CFG.magicAim,"originRadius",0,10,1)
         silentAimSection:AddLabel("Forward nudge is automatic: 0-5 studs, only")
@@ -18657,6 +18875,8 @@ function AR2_buildUI()
         local sprintSection = combatTab:AddSection({Name="Sprint",Position="right"})
         addToggle(sprintSection,"ADS While Sprinting",AR2_CFG.misc,"adsWhileSprint",function(v) AR2_setAdsWhileSprint(v) end)
         addToggle(sprintSection,"Force Sprint (no ADS needed)",AR2_CFG.misc,"forceSprint",function(v) AR2_setForceSprint(v) end)
+        addToggle(sprintSection,"Omni Movement (full speed any direction, gun out)",AR2_CFG.misc,"omniSprint",function(v) AR2_setOmni(v) end)
+        addSlider(sprintSection,"  └ Lateral Speed (lower = less rubberband)",AR2_CFG.misc,"omniSpeed",18,22,1)
         sprintSection:AddButton({
             Name = "Dump Character Fields (find sprint gate)",
             Callback = function()
@@ -18838,10 +19058,7 @@ function AR2_buildUI()
         addToggle(infJumpSection,"Custom Jump Power",AR2_CFG.misc,"jumpPowerOn",function(v) AR2_applyJumpConfig() end)
         addSlider(infJumpSection,"Jump Power",AR2_CFG.misc,"jumpPower",5,50,function(v) AR2_applyJumpConfig() end)
         local noclipSection = movementTab:AddSection({Name="No Clip"})
-        addToggle(noclipSection,"Enabled",AR2_CFG.misc,"noclip",function(v) AR2_toggleNoclip(v) end)
         addToggle(noclipSection,"Legal Resume On Release",AR2_CFG.misc,"autoResume")
-        addSlider(noclipSection,"Resume Hold (s)",AR2_CFG.misc,"resumeHold",0.1,3,0.1)
-        addSlider(noclipSection,"Noclip Speed",AR2_CFG.misc,"noclipSpeed",0,500)
         addToggle(noclipSection,"Anti-Fall Stun",AR2_CFG.misc,"antiFallStun",function(v) AR2_setAntiFallStun(v) end)
         addToggle(noclipSection,"Anti Ragdoll / Stun (better)",AR2_CFG.misc,"antiRagdoll",function(v) AR2_setAntiRagdoll(v) end,"antiRagdoll")
         local bhopSection = movementTab:AddSection({Name="Bunny Hop",Position="right"})
@@ -18853,23 +19070,6 @@ function AR2_buildUI()
         addSlider(tpDashSection,"Interval (s)",AR2_CFG.misc,"tpDashInterval",0.1,5,0.1,function(v) AR2_CFG.misc.tpDashInterval=v end)
         addSlider(tpDashSection,"Vertical Offset",AR2_CFG.misc,"tpDashVert",0,5,0.1,function(v) AR2_CFG.misc.tpDashVert=v end)
 
-        local tourSection = movementTab:AddSection({Name="TP Tour",Position="right"})
-        addToggle(tourSection,"Run Tour",AR2_CFG.misc,"tpTour",function(v)
-            local ok,why = AR2_setTpTour(v)
-            Notif.new({Title="DROIDWARE",Content="Tour: "..tostring(why),Duration=4})
-        end)
-        addToggle(tourSection,"Anchor While Travelling",AR2_CFG.misc,"tourAnchor")
-        addToggle(tourSection,"Skip My Team",AR2_CFG.misc,"tourTeamCheck")
-        addToggle(tourSection,"Auto-Tune Speed",AR2_CFG.misc,"tourAutoTune")
-        addSlider(tourSection,"Speed Ceiling (studs/s)",AR2_CFG.misc,"tourSpeed",500,30000,250)
-        addSlider(tourSection,"Max Step / Frame",AR2_CFG.misc,"tourMaxStep",10,800,10)
-        addSlider(tourSection,"Tune Floor (studs/s)",AR2_CFG.misc,"tourTuneFloor",100,3000,50)
-        addDropdown(tourSection,"Advance Key",
-            {"T","G","H","R","F","V","B","N","Y","U","J","K","L"},
-            AR2_CFG.misc,"tourKey")
-        addSlider(tourSection,"Standoff (studs)",AR2_CFG.misc,"tourOffset",2,40,1)
-        addSlider(tourSection,"Height Above",AR2_CFG.misc,"tourHeight",-10,30,1)
-        addSlider(tourSection,"Max Range",AR2_CFG.misc,"tourMaxDist",100,10000,100)
 
         local flySection = movementTab:AddSection({Name="Fly",Position="right"})
         addToggle(flySection,"Enabled",AR2_CFG.misc,"fly",function(v) AR2_setFly(v) end)
@@ -19051,6 +19251,11 @@ function AR2_buildUI()
         end})
         playerTPSection:AddButton({Name="Open Map",Callback=function() AR2_tp.toggleMap(true) end})
         addToggle(playerTPSection,"Respawn TP",AR2_CFG.tp,"respawnTP",function(v) AR2_toggleRespawnTP(v) end)
+        playerTPSection:AddButton({Name="TP To Death Spot",Callback=function()
+            local ok, why = AR2_tpToDeathSpot()
+            Notif.new({Title="DROIDWARE",
+                Content=(ok and "Travelling to " or "Can't: ")..tostring(why),Duration=5})
+        end})
 
         local carTPSection = teleportTab:AddSection({Name="Vehicle Noclip TP",Position="right"})
 
@@ -19221,6 +19426,102 @@ function AR2_itemTypeOf(itemName)
     return AR2_itemTypeCache[itemName]
 end
 
+-- ---------------- SPECTATE HUD (real GUI, so we can show the avatar) -------
+AR2_specGui = nil
+AR2_specHud = nil
+function AR2_specBuildHud()
+    if AR2_specHud then return AR2_specHud end
+    local ok = pcall(function()
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "AR2_Spec"
+        sg.ResetOnSpawn = false
+        sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        sg.DisplayOrder = 9999
+        pcall(function()
+            if gethui then sg.Parent = gethui()
+            elseif syn and syn.protect_gui then syn.protect_gui(sg) sg.Parent = game:GetService("CoreGui")
+            else sg.Parent = game:GetService("CoreGui") end
+        end)
+        if not sg.Parent then sg.Parent = AR2_LocalPlayer:WaitForChild("PlayerGui") end
+
+        local f = Instance.new("Frame")
+        f.Name = "Card"
+        f.Size = UDim2.fromOffset(268, 104)
+        f.Position = UDim2.new(0.5, -134, 0, 18)
+        f.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+        f.BackgroundTransparency = 0.12
+        f.BorderSizePixel = 0
+        f.Parent = sg
+        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 10)
+        local stroke = Instance.new("UIStroke", f)
+        stroke.Color = Color3.fromRGB(255, 150, 50); stroke.Thickness = 1; stroke.Transparency = 0.35
+
+        -- avatar
+        local av = Instance.new("ImageLabel")
+        av.Name = "Avatar"
+        av.Size = UDim2.fromOffset(72, 72)
+        av.Position = UDim2.fromOffset(14, 16)
+        av.BackgroundColor3 = Color3.fromRGB(26, 26, 34)
+        av.BorderSizePixel = 0
+        av.Parent = f
+        Instance.new("UICorner", av).CornerRadius = UDim.new(0, 8)
+
+        local function mk(name, x, y, w, sz, col, bold)
+            local t = Instance.new("TextLabel")
+            t.Name = name
+            t.BackgroundTransparency = 1
+            t.Position = UDim2.fromOffset(x, y)
+            t.Size = UDim2.fromOffset(w, sz + 4)
+            t.Font = bold and Enum.Font.GothamBold or Enum.Font.Gotham
+            t.TextSize = sz
+            t.TextColor3 = col
+            t.TextXAlignment = Enum.TextXAlignment.Left
+            t.Text = ""
+            t.Parent = f
+            return t
+        end
+        local nameLbl = mk("PName", 96, 14, 160, 16, Color3.fromRGB(255,255,255), true)
+        local gunLbl  = mk("PGun",  96, 34, 160, 13, Color3.fromRGB(255,175,70))
+        local distLbl = mk("PDist", 96, 50, 160, 13, Color3.fromRGB(200,200,210))
+        local dirLbl  = mk("PDir",  96, 66, 160, 13, Color3.fromRGB(200,200,210))
+
+        -- health bar
+        local hpBg = Instance.new("Frame")
+        hpBg.Name = "HpBg"
+        hpBg.Size = UDim2.fromOffset(158, 6)
+        hpBg.Position = UDim2.fromOffset(96, 86)
+        hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+        hpBg.BorderSizePixel = 0
+        hpBg.Parent = f
+        Instance.new("UICorner", hpBg).CornerRadius = UDim.new(1, 0)
+        local hpFill = Instance.new("Frame")
+        hpFill.Name = "HpFill"
+        hpFill.Size = UDim2.fromScale(1, 1)
+        hpFill.BackgroundColor3 = Color3.fromRGB(70, 230, 110)
+        hpFill.BorderSizePixel = 0
+        hpFill.Parent = hpBg
+        Instance.new("UICorner", hpFill).CornerRadius = UDim.new(1, 0)
+
+        AR2_specGui = sg
+        AR2_specHud = { gui = sg, card = f, avatar = av, name = nameLbl,
+                        gun = gunLbl, dist = distLbl, dir = dirLbl,
+                        hpBg = hpBg, hpFill = hpFill, lastUser = nil }
+    end)
+    if not ok then AR2_specHud = nil end
+    return AR2_specHud
+end
+
+function AR2_specHudShow(on)
+    if AR2_specHud and AR2_specHud.gui then
+        pcall(function() AR2_specHud.gui.Enabled = on and true or false end)
+    end
+end
+
+function AR2_specHudDestroy()
+    pcall(function() if AR2_specGui then AR2_specGui:Destroy() end end)
+    AR2_specGui, AR2_specHud = nil, nil
+end
+
 -- ===================== SPECTATE ==========================================
 -- Orbits a chosen player, camera facing them, with a live info panel.
 -- Everything here is READ-ONLY: it reads player/model state and moves our own
@@ -19311,12 +19612,21 @@ function AR2_specSet(on)
     if not on then
         if AR2_specConn then pcall(function() AR2_specConn:Disconnect() end) AR2_specConn = nil end
         AR2_specHideDraws()
+        AR2_specHudShow(false)
         AR2_specTarget = nil
         -- hand control back; freecam owns the camera if it is still on
         if not AR2_fcOn then
             pcall(function()
                 local cam = AR2_Workspace.CurrentCamera
-                cam.CameraType = AR2_fcSavedType or Enum.CameraType.Custom
+                -- NEVER restore Scriptable: AR2's own camera controller runs in
+                -- Scriptable, so handing it back Scriptable with nothing driving
+                -- cam.CFrame leaves the view frozen. Go to Custom and let the
+                -- game's camera module re-assert whatever it wants next frame.
+                local want = AR2_fcSavedType
+                if want == nil or want == Enum.CameraType.Scriptable then
+                    want = Enum.CameraType.Custom
+                end
+                cam.CameraType = want
                 local ch = AR2_LocalPlayer and AR2_LocalPlayer.Character
                 cam.CameraSubject = (ch and ch:FindFirstChildOfClass("Humanoid")) or cam.CameraSubject
                 AR2_UserInputService.MouseBehavior = Enum.MouseBehavior.Default
@@ -19363,46 +19673,64 @@ function AR2_specSet(on)
         local camPos = root.Position + lv * dist + Vector3.new(0, 2.5, 0)
         pcall(function() cam.CFrame = CFrame.lookAt(camPos, root.Position + Vector3.new(0, 1, 0)) end)
 
-        if not AR2_specDraws then return end
+        -- ---- HUD ----
+        local hud = AR2_specBuildHud()
         local myPos = AR2_localPosition and AR2_localPosition() or camPos
-        local bear = AR2_bearing(lv)
-        -- is he looking at me?
-        local toMe = (myPos - root.Position)
-        local facing = "away"
-        if toMe.Magnitude > 1e-3 then
-            local dot = lv.Unit:Dot(toMe.Unit)
-            facing = (dot > 0.80) and "AT YOU" or (dot > 0.3 and "toward you" or "away")
-        end
-        local hp = "?"
-        pcall(function()
-            local h = t.model and t.model:FindFirstChildOfClass("Humanoid")
-            if h then hp = ("%d/%d"):format(math.floor(h.Health), math.floor(h.MaxHealth)) end
-        end)
-        local ms = "?"
-        pcall(function() ms = AR2_animState(t.model, "MoveState", "?") end)
+        if hud then
+            AR2_specHudShow(true)
+            hud.name.Text = ("%s   [%d/%d]"):format(tostring(t.name), AR2_specIdx, math.max(#list, 1))
 
-        local rows = {
-            ("SPECTATING  [%d/%d]"):format(AR2_specIdx, math.max(#list, 1)),
-            ("Name     %s"):format(tostring(t.name)),
-            (function()
-                if not t.item then return "Gun      unarmed" end
-                local ti = AR2_itemTypeOf(t.item)
-                if ti then return ("Gun      %s  (%s / %s)"):format(tostring(t.item), tostring(ti.t), tostring(ti.s)) end
-                return ("Gun      %s"):format(tostring(t.item))
-            end)(),
-            ("Distance %d studs"):format(math.floor((root.Position - myPos).Magnitude)),
-            ("Facing   %s  (%s)"):format(bear, facing),
-            ("Health   %s      State %s"):format(hp, tostring(ms)),
-            ("K/D      %s"):format(AR2_playerKD(t.player) or "-- (not exposed)"),
-        }
-        for i, txt in ipairs(rows) do
-            local d = AR2_specDraws[i]
-            if d then
-                d.Text = txt
-                d.Position = Vector2.new(24, 140 + (i - 1) * 18)
-                d.Color = (i == 1) and Color3.fromRGB(255, 170, 60) or Color3.fromRGB(235, 235, 240)
-                d.Visible = true
+            -- avatar headshot (only refetch when the target changes)
+            local uid = t.player and t.player.UserId or nil
+            if uid and hud.lastUser ~= uid then
+                hud.lastUser = uid
+                pcall(function()
+                    hud.avatar.Image =
+                        ("rbxthumb://type=AvatarHeadShot&id=%d&w=150&h=150"):format(uid)
+                end)
+            elseif not uid then
+                hud.lastUser = nil
+                pcall(function() hud.avatar.Image = "" end)
             end
+
+            -- weapon (+ type/slot when ItemData knows it)
+            local gunTxt = "unarmed"
+            if t.item then
+                local ti = AR2_itemTypeOf(t.item)
+                gunTxt = ti and ("%s  (%s)"):format(tostring(t.item), tostring(ti.t))
+                            or tostring(t.item)
+            end
+            hud.gun.Text = gunTxt
+
+            hud.dist.Text = ("%d studs away"):format(
+                math.floor((root.Position - myPos).Magnitude))
+
+            -- which way he is MOVING (compass), plus whether he faces you
+            local vel = root.AssemblyLinearVelocity
+            local flat = Vector3.new(vel.X, 0, vel.Z)
+            local moveTxt
+            if flat.Magnitude > 1 then
+                moveTxt = ("moving %s  %.0f sps"):format(AR2_bearing(flat.Unit), flat.Magnitude)
+            else
+                moveTxt = "standing still"
+            end
+            local lv = root.CFrame.LookVector
+            local toMe = myPos - root.Position
+            if toMe.Magnitude > 1e-3 and lv.Unit:Dot(toMe.Unit) > 0.8 then
+                moveTxt = moveTxt .. "  · FACING YOU"
+            end
+            hud.dir.Text = moveTxt
+
+            -- health (real when readable, otherwise a full bar)
+            local frac = 1
+            pcall(function()
+                local h = t.model and t.model:FindFirstChildOfClass("Humanoid")
+                if h and h.MaxHealth > 0 then frac = math.clamp(h.Health / h.MaxHealth, 0, 1) end
+            end)
+            hud.hpFill.Size = UDim2.fromScale(frac, 1)
+            hud.hpFill.BackgroundColor3 = (frac > 0.5) and Color3.fromRGB(70, 230, 110)
+                or (frac > 0.25) and Color3.fromRGB(240, 200, 60)
+                or Color3.fromRGB(240, 70, 70)
         end
     end)
 end
@@ -19430,7 +19758,11 @@ function AR2_freecamSet(on)
         -- spectate may still own the camera; only hand it back if nothing else does
         if AR2_specOn then return end
         pcall(function()
-            cam.CameraType    = AR2_fcSavedType or Enum.CameraType.Custom
+            local wantT = AR2_fcSavedType
+            if wantT == nil or wantT == Enum.CameraType.Scriptable then
+                wantT = Enum.CameraType.Custom
+            end
+            cam.CameraType    = wantT
             -- if the saved subject died while we were flying, fall back to the
             -- live humanoid so the camera doesn't come back detached
             local subj = AR2_fcSavedSubject
@@ -19625,12 +19957,12 @@ end
 
 
         local morphSection = miscTab:AddSection({Name="Model Morph"})
-        addDropdown(morphSection,"Preset",{"Custom","Spongebob","Verity","Tung Tung Tung","Gucci Morty","Preset 5"},AR2_CFG.misc,"morphPreset",function(v)
+        addDropdown(morphSection,"Preset",{"Custom","Spongebob","Verity","Tung Tung Tung","Gucci Morty","Droid"},AR2_CFG.misc,"morphPreset",function(v)
             if v == "Spongebob" then AR2_CFG.misc.morphId = "4759134675"
             elseif v == "Verity" then AR2_CFG.misc.morphId = "140105640267431"
             elseif v == "Tung Tung Tung" then AR2_CFG.misc.morphId = "138151705692565"
             elseif v == "Gucci Morty" then AR2_CFG.misc.morphId = "82766930708256"
-            elseif v == "Preset 5" then AR2_CFG.misc.morphId = "114123512002252" end
+            elseif v == "Droid" then AR2_CFG.misc.morphId = "101088259357349" end
         end)
         morphSection:AddButton({Name="Set Model ID", Callback=function()
             AR2_morphPrompt("Model asset ID:", AR2_CFG.misc.morphId or "", function(v)
@@ -19661,12 +19993,12 @@ end
         addToggle(enemyMorphSection,"Don't Hide Real Body",AR2_CFG.misc,"enemyMorphNoHide")
         addSlider(enemyMorphSection,"Max Morphed Players",AR2_CFG.misc,"enemyMorphMax",1,20,1)
         addSlider(enemyMorphSection,"Max Parts Per Rig",AR2_CFG.misc,"enemyMorphPartCap",10,300,10)
-        addDropdown(enemyMorphSection,"Preset",{"Custom","Spongebob","Verity","Tung Tung Tung","Gucci Morty","Preset 5"},AR2_CFG.misc,"enemyMorphPreset",function(v)
+        addDropdown(enemyMorphSection,"Preset",{"Custom","Spongebob","Verity","Tung Tung Tung","Gucci Morty","Droid"},AR2_CFG.misc,"enemyMorphPreset",function(v)
             if v == "Spongebob" then AR2_CFG.misc.enemyMorphId = "4759134675"
             elseif v == "Verity" then AR2_CFG.misc.enemyMorphId = "140105640267431"
             elseif v == "Tung Tung Tung" then AR2_CFG.misc.enemyMorphId = "138151705692565"
             elseif v == "Gucci Morty" then AR2_CFG.misc.enemyMorphId = "82766930708256"
-            elseif v == "Preset 5" then AR2_CFG.misc.enemyMorphId = "114123512002252" end
+            elseif v == "Droid" then AR2_CFG.misc.enemyMorphId = "101088259357349" end
             if AR2_CFG.misc.enemyMorph then
                 AR2_setEnemyMorph(false)
                 AR2_setEnemyMorph(true)
