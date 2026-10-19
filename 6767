@@ -4898,9 +4898,15 @@ function AR2_findBestOrigin(origin, direction, targetPos, targetChar)
     if ttl > 0 then
         -- 1-stud buckets so the memo survives small movement; move (or the
         -- target moves) a stud and we re-search at full resolution.
-        key = ("%d_%d_%d|%d_%d_%d|%s"):format(
+        -- direction and maxRadius are live search inputs: without them two
+        -- shots from the same spot with different aim reuse the same answer,
+        -- and moving the Origin Radius slider never invalidates the cache
+        local du = direction.Unit
+        key = ("%d_%d_%d|%d_%d_%d|%d_%d_%d|%d|%s"):format(
             origin.X//1, origin.Y//1, origin.Z//1,
             targetPos.X//1, targetPos.Y//1, targetPos.Z//1,
+            du.X*20//1, du.Y*20//1, du.Z*20//1,
+            maxRadius*10//1,
             tostring(targetChar))
         if memo.key == key and (os.clock() - memo.at) < ttl then
             AR2_lastOriginRays = 0
@@ -4910,7 +4916,12 @@ function AR2_findBestOrigin(origin, direction, targetPos, targetChar)
     end
 
     local rayParams = AR2_originRayParams
-    rayParams.FilterDescendantsInstances = { AR2_LocalPlayer.Character, targetChar }
+    -- build conditionally: while dead/respawning .Character is nil, and a nil
+    -- hole at index 1 makes Roblox reject the whole filter array
+    local filt = {}
+    if AR2_LocalPlayer and AR2_LocalPlayer.Character then filt[#filt+1] = AR2_LocalPlayer.Character end
+    if targetChar then filt[#filt+1] = targetChar end
+    rayParams.FilterDescendantsInstances = filt
 
     local dirs  = AR2_ORIGIN_DIRS
     local nDirs = #dirs
@@ -7982,8 +7993,8 @@ function AR2_rageBotVisCheck(model, part, origin)
         pcall(function()
             local dir = (part.Position - origin).Unit
             local nudge = tonumber(AR2_CFG.magicAim.originNudge) or 2
-            local shifted = AR2_findBestOrigin(origin + dir * nudge, dir, part.Position, model)
-            if shifted then
+            local shifted, shiftedClear = AR2_findBestOrigin(origin + dir * nudge, dir, part.Position, model)
+            if shiftedClear and shifted then
                 local t2, w2, r2 = AR2_penStudsTo(shifted, part.Position, ignore)
                 if r2 and t2 < total then total, walls, reached = t2, w2, true end
             end
@@ -8812,11 +8823,19 @@ if AR2_success and AR2_Bullets and AR2_Bullets.Fire then
     -- Luraph), so a plain `AR2_Bullets.Fire = ...` throws "attempt to modify a
     -- readonly table" and silent aim silently never installs. Unlock, rawset,
     -- relock -- the same pattern the always-suppressed hook already uses.
+    -- Only re-lock if it was ALREADY locked. Locking a table the game left
+    -- writable breaks every later write to it (that was a regression).
+    local AR2_bulletsWasRO = false
+    pcall(function()
+        if typeof(isreadonly) == "function" then AR2_bulletsWasRO = isreadonly(AR2_Bullets) and true or false end
+    end)
     local AR2_fireHookOk = pcall(function()
         if AR2_CAP.setreadonly then pcall(setreadonly, AR2_Bullets, false) end
         rawset(AR2_Bullets, "Fire", AR2_newBulletsFire)
     end)
-    pcall(function() if AR2_CAP.setreadonly then setreadonly(AR2_Bullets, true) end end)
+    if AR2_bulletsWasRO then
+        pcall(function() if AR2_CAP.setreadonly then setreadonly(AR2_Bullets, true) end end)
+    end
     if not AR2_fireHookOk then
         -- last resort: direct assignment (older executors without setreadonly)
         AR2_fireHookOk = pcall(function() AR2_Bullets.Fire = AR2_newBulletsFire end)
@@ -14320,7 +14339,7 @@ AR2_sprintHeld  = {}
 -- broke the state machine and spammed errors out of Reticle.GetFirearmTargetInfo.
 -- Do NOT reintroduce speculative field writes here. Use the "Dump Character
 -- Fields" button to find the real direction gate first, then add it by name.
-AR2_SPRINT_GATES = {}
+-- (removed: speculative sprint-gate field list; see note above)
 
 function AR2_setForceSprint(on)
     AR2_CFG.misc.forceSprint = on and true or false
@@ -14387,7 +14406,9 @@ function AR2_dumpCharFields()
             out[#out+1] = ("  %s = Instance<%s> '%s'"):format(tostring(k), v.ClassName, v.Name)
         end
     end
+    local header = table.remove(out, 1)   -- keep the header on top
     table.sort(out)
+    table.insert(out, 1, header)
     local text = table.concat(out, "\n")
     print(text)
     if setclipboard then pcall(setclipboard, text) end
@@ -19212,7 +19233,7 @@ function AR2_playerKD(plr)
                 local l = name:lower()
                 if not k and (l == "kills" or l == "kill" or l:find("kill")) then k = v end
                 if not d and (l == "deaths" or l == "death" or l:find("death")) then d = v end
-                if l == "kd" or l == "kdr" then return end
+
             end
         end
     end)
@@ -19221,14 +19242,15 @@ function AR2_playerKD(plr)
         if not ls then return end
         for _, v in ipairs(ls:GetChildren()) do
             local l = v.Name:lower()
-            if v:IsA("ValueBase") then
+            if v:IsA("ValueBase") and type(v.Value) == "number" then
                 if not k and l:find("kill") then k = v.Value end
                 if not d and l:find("death") then d = v.Value end
             end
         end
     end)
-    if k == nil and d == nil then return nil end
-    k, d = k or 0, d or 0
+    if type(k) ~= "number" and type(d) ~= "number" then return nil end
+    k = (type(k) == "number") and k or 0
+    d = (type(d) == "number") and d or 0
     local ratio = (d > 0) and (k / d) or k
     return ("%d / %d  (%.2f)"):format(k, d, ratio)
 end
@@ -19266,6 +19288,7 @@ end
 
 function AR2_specSet(on)
     on = on and true or false
+    AR2_CFG.misc.spectate = on
     if on == AR2_specOn then return end
     AR2_specOn = on
 
@@ -19282,6 +19305,7 @@ function AR2_specSet(on)
                 cam.CameraSubject = (ch and ch:FindFirstChildOfClass("Humanoid")) or cam.CameraSubject
                 AR2_UserInputService.MouseBehavior = Enum.MouseBehavior.Default
             end)
+            AR2_fcSavedType, AR2_fcSavedSubject, AR2_fcSavedMouse = nil, nil, nil
         end
         return
     end
@@ -19302,6 +19326,7 @@ function AR2_specSet(on)
         local cam = AR2_Workspace.CurrentCamera
         if not cam then return end
 
+        local list = AR2_specList()          -- once per frame, not three times
         local t = AR2_specTarget
         -- target left / died -> advance
         if not (t and t.root and t.root.Parent) then
@@ -19310,7 +19335,7 @@ function AR2_specSet(on)
             if not t then AR2_specHideDraws() return end
         end
         -- refresh the entity so position/gun/health are live
-        for _, e in ipairs(AR2_specList()) do
+        for _, e in ipairs(list) do
             if e.name == t.name then t = e AR2_specTarget = e break end
         end
         local root = t.root
@@ -19341,7 +19366,7 @@ function AR2_specSet(on)
         pcall(function() ms = AR2_animState(t.model, "MoveState", "?") end)
 
         local rows = {
-            ("SPECTATING  [%d/%d]"):format(AR2_specIdx, math.max(#AR2_specList(), 1)),
+            ("SPECTATING  [%d/%d]"):format(AR2_specIdx, math.max(#list, 1)),
             ("Name     %s"):format(tostring(t.name)),
             (function()
                 if not t.item then return "Gun      unarmed" end
@@ -19368,6 +19393,9 @@ end
 
 function AR2_freecamSet(on)
     on = on and true or false
+    -- the keybind does `AR2_freecamSet(not AR2_CFG.misc.freecam)`, so this flag
+    -- MUST be written here or the hotkey only ever turns it on
+    AR2_CFG.misc.freecam = on
     if on == AR2_fcOn then return end
     AR2_fcOn = on
 
@@ -19383,6 +19411,8 @@ function AR2_freecamSet(on)
             AR2_fcInputs = nil
         end
         pcall(function() CAS:UnbindAction(AR2_FC_ACTION) end)
+        -- spectate may still own the camera; only hand it back if nothing else does
+        if AR2_specOn then return end
         pcall(function()
             cam.CameraType    = AR2_fcSavedType or Enum.CameraType.Custom
             -- if the saved subject died while we were flying, fall back to the
@@ -19395,14 +19425,16 @@ function AR2_freecamSet(on)
             cam.CameraSubject = subj
             AR2_UserInputService.MouseBehavior = AR2_fcSavedMouse or Enum.MouseBehavior.Default
         end)
-        AR2_fcSavedMouse = nil
+        AR2_fcSavedMouse, AR2_fcSavedType, AR2_fcSavedSubject = nil, nil, nil
         return
     end
 
-    AR2_fcSavedType    = cam.CameraType
-    AR2_fcSavedSubject = cam.CameraSubject
+    -- `or` form: if spectate already saved the REAL camera state, don't
+    -- overwrite it with Scriptable (that left the camera frozen until rejoin)
+    AR2_fcSavedType    = AR2_fcSavedType    or cam.CameraType
+    AR2_fcSavedSubject = AR2_fcSavedSubject or cam.CameraSubject
     AR2_fcCF           = cam.CFrame
-    AR2_fcSavedMouse   = AR2_UserInputService.MouseBehavior
+    AR2_fcSavedMouse   = AR2_fcSavedMouse   or AR2_UserInputService.MouseBehavior
 
     pcall(function() cam.CameraType = Enum.CameraType.Scriptable end)
 
@@ -19412,7 +19444,7 @@ function AR2_freecamSet(on)
         CAS:BindActionAtPriority(AR2_FC_ACTION,
             function() return Enum.ContextActionResult.Sink end,
             false, Enum.ContextActionPriority.High.Value,
-            unpack(AR2_FC_SINK_KEYS))
+            table.unpack(AR2_FC_SINK_KEYS))
     end)
 
     local yaw, pitch = 0, 0
