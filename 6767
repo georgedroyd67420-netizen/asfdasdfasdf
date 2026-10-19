@@ -1,9 +1,4 @@
--- ===================== SINGLE-INSTANCE GUARD =============================
--- Running the hub twice (a duplicated loadstring, or re-executing by hand)
--- used to start a SECOND full hub beside the first: every RenderStepped and
--- Heartbeat loop doubled, and the two Bullets.Fire installs captured each
--- other as "the original" and fought, which silently killed HBE.
--- Tear the previous instance down before building a new one.
+
 if getgenv then
     local g = getgenv()
     if g.ORIGIN_HUB_ACTIVE then
