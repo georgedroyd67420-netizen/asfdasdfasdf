@@ -311,7 +311,7 @@ AR2_CFG = {
         forceSight = false, sightName = "None", sightWeld = true, sightScale = 1,
         sightX = 0, sightY = 0, sightZ = 0, sightAuto = true,
         sightPitch = 0, sightYaw = 0, sightRoll = 0,
-        antiRagdoll = false, adsWhileSprint = false, forceSprint = false,
+        antiRagdoll = false, adsWhileSprint = false, forceSprint = false, sprintOmni = false,
         antiRubber = false, resumeHold = 0.6, autoResume = true, cosLearn = false,
         enemyMorphMax = 6, enemyMorphPartCap = 60, ownedIndex = 1,
         enemyMorphNear = 18, enemyMorphFar = 900, enemyMorphNoHide = false,
@@ -14294,12 +14294,16 @@ AR2_adsConn = nil
 -- ADS or which way you are moving.
 AR2_sprintConn  = nil
 AR2_sprintHeld  = {}
--- RunningInput is the sprint *input* flag. AR2 gates actual sprint on movement
--- direction internally, so we also pin any boolean field on the character class
--- that looks like the resolved sprint state. We only touch fields that already
--- exist AND are already booleans, so we never invent members on the class.
-AR2_SPRINT_GATES = { "Running", "IsRunning", "Sprinting", "IsSprinting",
-                     "CanRun", "CanSprint", "SprintInput", "RunInput" }
+-- RunningInput is the sprint *input* flag -- the ONLY field the hub has ever
+-- written for sprint, and the only one known to be safe.
+--
+-- An earlier version of this also force-set guessed fields (Running, CanRun,
+-- Sprinting, ...) every heartbeat to try to get omnidirectional sprint. Those
+-- are state the character + firearm systems read, so pinning them true 60x/sec
+-- broke the state machine and spammed errors out of Reticle.GetFirearmTargetInfo.
+-- Do NOT reintroduce speculative field writes here. Use the "Dump Character
+-- Fields" button to find the real direction gate first, then add it by name.
+AR2_SPRINT_GATES = {}
 
 function AR2_setForceSprint(on)
     AR2_CFG.misc.forceSprint = on and true or false
@@ -14322,16 +14326,25 @@ function AR2_setForceSprint(on)
         local gc = AR2_resolveGameCharacter()
         if type(gc) ~= "table" then return end
 
-        -- pin the input every frame: survives respawn, menus, and ADS release
+        -- pin the input every frame: survives respawn, menus, and ADS release.
         if rawget(gc, "RunningInput") ~= true then
             pcall(function() gc.RunningInput = true end)
         end
-        -- omnidirectional: re-assert the resolved state so strafing/backwards
-        -- movement isn't gated back to walk speed
-        for _, f in ipairs(AR2_SPRINT_GATES) do
-            local cur = rawget(gc, f)
-            if type(cur) == "boolean" and cur ~= true then
-                if pcall(function() gc[f] = true end) then AR2_sprintHeld[f] = true end
+
+        -- OMNIDIRECTIONAL (opt-in). Measured from a live probe: MoveState is
+        -- "Running" iff MoveVector.Z < 0 (forward / forward-diagonal). Pure
+        -- strafe (Z==0) and backward (Z>0) resolve to "Walking" -- the weapon
+        -- being equipped has nothing to do with it.
+        -- moveStateSolve re-assigns MoveState every physics step, so we
+        -- re-assert it after. This writes ONE real field to ONE real value the
+        -- game itself uses; it does not invent members.
+        if AR2_CFG.misc.sprintOmni then
+            local mv = rawget(gc, "MoveVector")
+            local ms = rawget(gc, "MoveState")
+            -- only while actually moving, and only to upgrade Walking->Running.
+            -- never touch Swimming/Falling/Vaulting/etc.
+            if ms == "Walking" and typeof(mv) == "Vector3" and mv.Magnitude > 0.1 then
+                pcall(function() gc.MoveState = "Running" end)
             end
         end
     end)
@@ -18581,7 +18594,8 @@ function AR2_buildUI()
 
         local sprintSection = combatTab:AddSection({Name="Sprint",Position="right"})
         addToggle(sprintSection,"ADS While Sprinting",AR2_CFG.misc,"adsWhileSprint",function(v) AR2_setAdsWhileSprint(v) end)
-        addToggle(sprintSection,"Force Sprint (all directions, no ADS)",AR2_CFG.misc,"forceSprint",function(v) AR2_setForceSprint(v) end)
+        addToggle(sprintSection,"Force Sprint (no ADS needed)",AR2_CFG.misc,"forceSprint",function(v) AR2_setForceSprint(v) end)
+        addToggle(sprintSection,"  └ Omnidirectional (strafe/back) — may rubberband",AR2_CFG.misc,"sprintOmni")
         sprintSection:AddButton({
             Name = "Dump Character Fields (find sprint gate)",
             Callback = function()
