@@ -290,6 +290,7 @@ AR2_CFG = {
                 borderColor = Color3.fromRGB(230, 40, 50) },
     misc = {
         freecam = false, freecamSpeed = 60, spectate = false, specDist = 10, specNative = true,
+        flySmooth = false, flySmoothSpeed = 28,
         desyncFly = false, freecamDesync = true, desyncHideSelf = true, ownUnlock = false, combatLog = false,
         freecamNative = true, netGuard = true, netGuardBlock = false,
         hairColor = 1, skinColor = 1,
@@ -367,7 +368,7 @@ AR2_CFG = {
         bagPitch = 0, bagRoll = 0, bagPreset = "Worn on back", bagTunes = "",
         bagScale = 1,
         antiAim = { enabled = false, radius = 3, speed = 5, mode = "Circle",
-                    look = false, lookMode = "Jitter", lookSpeed = 6, lookPitch = 0,
+                    look = false, lookMode = "Backwards", lookSpeed = 6, lookPitch = 0,
                     showSelf = true, moveBody = true },
         zombieCircle = { enabled = false, distance = 10, speed = 5 },
         tungSelf = false, tungGlobal = false,
@@ -630,6 +631,9 @@ function AR2_lookAADrawStop() end
 function AR2_lookAATestChannel() end
 function AR2_lookAABodyStart() end
 function AR2_lookAABodyStop() end
+function AR2_reportClamp(a, n) return a, n end
+function AR2_reportClampReset() end
+function AR2_flySmoothStatus() return "" end
 function AR2_killScanReport() return "" end
 function AR2_killClear() end
 function AR2_killIsVolume() end
@@ -2332,43 +2336,107 @@ local ESP_BODY_WHITELIST = {
     RightUpperLeg=true, RightLowerLeg=true, RightFoot=true,
 }
 
+-- SCREEN BOX
+--
+-- This used to walk model:GetDescendants() every frame and run EIGHT
+-- WorldToViewportPoint calls per BasePart -- about 120 projections for one
+-- character, every frame, for every entity on screen. WorldToViewportPoint
+-- is a C boundary crossing; that volume of them is the ESP's whole cost.
+--
+-- Now: the part list is cached per model, the world-space box is accumulated
+-- in plain Lua vector maths (free by comparison), and only the eight corners
+-- of THAT box are projected. Eight calls per entity instead of a hundred and
+-- twenty, with a box within a pixel or two of the old one.
+AR2_boxParts = AR2_boxParts or setmetatable({}, { __mode = "k" })
+
+local function AR2_boxPartList(model, useWhitelist)
+    local rec = AR2_boxParts[model]
+    local now = os.clock()
+    if rec and rec.wl == useWhitelist and (now - rec.at) < 1.5 then return rec.list end
+
+    local list = {}
+    if model:IsA("BasePart") then
+        list[1] = model
+    else
+        for _, p in ipairs(model:GetDescendants()) do
+            if p:IsA("BasePart") and not p:GetAttribute("ar2_hbe") then
+                if (not useWhitelist) or ESP_BODY_WHITELIST[p.Name] then
+                    list[#list + 1] = p
+                end
+            end
+        end
+    end
+    AR2_boxParts[model] = { list = list, at = now, wl = useWhitelist }
+    return list
+end
+
 function AR2_screenBox(model, useWhitelist)
     local cam = Workspace.CurrentCamera
     if not cam then return nil end
+
+    local parts = AR2_boxPartList(model, useWhitelist)
+    if #parts == 0 then
+        if useWhitelist then return AR2_screenBox(model, false) end
+        return nil
+    end
+
+    -- accumulate the world box without touching the camera at all
+    local lo = Vector3.new(math.huge, math.huge, math.huge)
+    local hi = Vector3.new(-math.huge, -math.huge, -math.huge)
+    local any = false
+
+    for i = 1, #parts do
+        local part = parts[i]
+        if part.Parent then
+            local cf, sz = part.CFrame, part.Size
+            local r, u, l = cf.RightVector, cf.UpVector, cf.LookVector
+            local hx = math.abs(r.X) * sz.X + math.abs(u.X) * sz.Y + math.abs(l.X) * sz.Z
+            local hy = math.abs(r.Y) * sz.X + math.abs(u.Y) * sz.Y + math.abs(l.Y) * sz.Z
+            local hz = math.abs(r.Z) * sz.X + math.abs(u.Z) * sz.Y + math.abs(l.Z) * sz.Z
+            local c = cf.Position
+            local e = Vector3.new(hx, hy, hz) * 0.5
+            local a1, b1 = c - e, c + e
+            if a1.X < lo.X then lo = Vector3.new(a1.X, lo.Y, lo.Z) end
+            if a1.Y < lo.Y then lo = Vector3.new(lo.X, a1.Y, lo.Z) end
+            if a1.Z < lo.Z then lo = Vector3.new(lo.X, lo.Y, a1.Z) end
+            if b1.X > hi.X then hi = Vector3.new(b1.X, hi.Y, hi.Z) end
+            if b1.Y > hi.Y then hi = Vector3.new(hi.X, b1.Y, hi.Z) end
+            if b1.Z > hi.Z then hi = Vector3.new(hi.X, hi.Y, b1.Z) end
+            any = true
+        end
+    end
+    if not any then
+        AR2_boxParts[model] = nil
+        if useWhitelist then return AR2_screenBox(model, false) end
+        return nil
+    end
+
+    -- cheap behind-camera reject, no projection needed
+    -- behind-camera reject in object space: one cheap transform instead of
+    -- eight projections for something nobody can see
+    local mid  = (lo + hi) * 0.5
+    local span = (hi - lo).Magnitude * 0.5
+    if cam.CFrame:PointToObjectSpace(mid).Z > span then return nil end
+
     local minX, minY = math.huge, math.huge
     local maxX, maxY = -math.huge, -math.huge
-    local anyOnScreen = false
+    local onScreen = false
 
-    local function addPart(part)
-        if not part:IsA("BasePart") then return end
-        if part:GetAttribute("ar2_hbe") then return end
-        if useWhitelist and not ESP_BODY_WHITELIST[part.Name] then return end
-        local cf, sz = part.CFrame, part.Size
-        for x=-1,1,2 do for y=-1,1,2 do for z=-1,1,2 do
-            local pt = cam:WorldToViewportPoint(
-                (cf * CFrame.new(sz.X/2*x, sz.Y/2*y, sz.Z/2*z)).Position)
-            if pt.Z > 0 then
-                anyOnScreen = true
-                if pt.X < minX then minX = pt.X end
-                if pt.Y < minY then minY = pt.Y end
-                if pt.X > maxX then maxX = pt.X end
-                if pt.Y > maxY then maxY = pt.Y end
-            end
-        end end end
-    end
-
-    if model:IsA("Model") then
-        for _, p in ipairs(model:GetDescendants()) do addPart(p) end
-
-
-        if not anyOnScreen and useWhitelist then
-            return AR2_screenBox(model, false)
+    for x = 0, 1 do for y = 0, 1 do for z = 0, 1 do
+        local pt = cam:WorldToViewportPoint(Vector3.new(
+            x == 0 and lo.X or hi.X,
+            y == 0 and lo.Y or hi.Y,
+            z == 0 and lo.Z or hi.Z))
+        if pt.Z > 0 then
+            onScreen = true
+            if pt.X < minX then minX = pt.X end
+            if pt.Y < minY then minY = pt.Y end
+            if pt.X > maxX then maxX = pt.X end
+            if pt.Y > maxY then maxY = pt.Y end
         end
-    elseif model:IsA("BasePart") then
-        addPart(model)
-    end
+    end end end
 
-    if not anyOnScreen or minX == math.huge then return nil end
+    if not onScreen or minX == math.huge then return nil end
     return minX, minY, maxX - minX, maxY - minY
 end
 
@@ -12690,18 +12758,14 @@ function AR2_setGuiUnlock(on)
     if AR2_guiUnlockConn then AR2_guiUnlockConn:Disconnect() AR2_guiUnlockConn = nil end
     if not AR2_CFG.misc.guiUnlock then return true, "off" end
 
-    local nextAt, nextCheck, menuOpen = 0, 0, false
+    -- The menu-open check gated everything: when AR2_guiMenuOpen failed to
+    -- recognise the menu, the sweep never ran and the unlocker looked broken.
+    -- Sweeping unconditionally at the same 0.3s throttle costs nothing when
+    -- the menu is closed -- there is simply nothing to find.
+    local nextAt = 0
     AR2_guiUnlockConn = AR2_RunService.Heartbeat:Connect(function()
         if not AR2_CFG.misc.guiUnlock then return end
         local now = os.clock()
-
-        if now >= nextCheck then
-            nextCheck = now + 0.5
-            local ok, open = pcall(AR2_guiMenuOpen)
-            menuOpen = ok and open or false
-        end
-        if not menuOpen then return end
-
         if now < nextAt then return end
         nextAt = now + 0.3
         pcall(AR2_guiSweep)
@@ -20193,6 +20257,15 @@ function AR2_buildUI()
 
 
         local flySection = movementTab:AddSection({Name="Fly",Position="right"})
+        addToggle(flySection,"Legal-Speed Reporting (anti-rubberband)",AR2_CFG.misc,"flySmooth",function(v)
+            AR2_reportClampReset()
+            if not AR2_netGuardInstalled then AR2_installNetGuard() end
+            AR2_notify(v and "reporting a walk-speed path to the server" or "reporting your real position", 4)
+        end)
+        addSlider(flySection,"  \u{2514} Reported Speed Cap",AR2_CFG.misc,"flySmoothSpeed",8,120,2)
+        flySection:AddButton({Name="Reporting: Status",Callback=function()
+            local t = AR2_flySmoothStatus() print(t) AR2_notify(t, 7)
+        end})
         addToggle(flySection,"Enabled",AR2_CFG.misc,"fly",function(v) AR2_setFly(v) end)
         addToggle(flySection,"Noclip While Flying",AR2_CFG.misc,"flyNoclip")
         addSlider(flySection,"Speed",AR2_CFG.misc,"flySpeedPct",10,1000,function(v) AR2_flySpeed = v end)
@@ -20212,8 +20285,11 @@ function AR2_buildUI()
 
         spinSection:AddLabel("Anti-Aim — fakes the direction you report")
         addToggle(spinSection,"Fake Look Direction",AR2_CFG.misc.antiAim,"look",function(v) AR2_lookAASet(v) end,"antiAimLook")
-        addDropdown(spinSection,"  └ Mode",{"Jitter","Sweep","Fold","Random","Max Left","Max Right"},AR2_CFG.misc.antiAim,"lookMode")
-        spinSection:AddLabel("Yaw is clamped to 75\u{00B0} by the game — pitch is not")
+        addDropdown(spinSection,"  └ Mode",
+            {"Backwards","Backwards Jitter","Fold","Fold Spin","Upside Down",
+             "Spin","Sideways","Jitter","Sweep","Random","Max Left","Max Right"},
+            AR2_CFG.misc.antiAim,"lookMode")
+        spinSection:AddLabel("Full angles need Turn My Head + Body on")
         addSlider(spinSection,"  └ Speed",AR2_CFG.misc.antiAim,"lookSpeed",1,20,0.5)
         addSlider(spinSection,"  └ Pitch (deg)",AR2_CFG.misc.antiAim,"lookPitch",-80,80,5)
         addToggle(spinSection,"  └ Turn My Head + Body",AR2_CFG.misc.antiAim,"moveBody",function(v)
@@ -21342,12 +21418,15 @@ function AR2_installNetGuard()
         end
 
         if AR2_POSITION_MSGS[msg]
-           and (AR2_desyncOn or (AR2_CFG.misc.antiAim and AR2_CFG.misc.antiAim.look)) then
+           and (AR2_desyncOn or AR2_CFG.misc.flySmooth
+                or (AR2_CFG.misc.antiAim and AR2_CFG.misc.antiAim.look)) then
             local a = table.pack(...)
             local args, n = a, a.n
             if AR2_desyncOn then
                 args, n = AR2_desyncRewriteState(args, n)
                 AR2_desyncRewrites = (AR2_desyncRewrites or 0) + 1
+            elseif AR2_CFG.misc.flySmooth then
+                args, n = AR2_reportClamp(args, n)
             end
             if AR2_CFG.misc.antiAim and AR2_CFG.misc.antiAim.look then
                 args, n = AR2_lookAARewrite(args, n)
@@ -22632,45 +22711,68 @@ AR2_POSITION_MSGS = {
 --
 -- Note num10 is halved before the test, so the real cutoff on the reported
 -- angle is twice 75 degrees. Staying under 74 is safely inside either way.
+-- Two different limits apply depending on what you are trying to move.
+--
+-- For OTHER clients rendering you, the animator clamps the WAIST twist:
+--     local y = if math.abs(num10) > math.rad(75) then 0 else num10
+-- past that it drops to zero, so a packet-only spoof wants to stay inside it.
+--
+-- For your OWN rig it does not matter: the root turn spring follows the look
+-- vector too, so the whole body comes around and nothing clamps the result.
+-- With "Turn My Head + Body" on, full angles are usable again.
 AR2_LOOK_YAW_MAX = 74
 
 function AR2_lookAAFakeDir(real)
     local cfg   = AR2_CFG.misc.antiAim
-    local mode  = cfg.lookMode or "Jitter"
+    local mode  = cfg.lookMode or "Backwards"
     local pitch = tonumber(cfg.lookPitch) or 0
     local speed = tonumber(cfg.lookSpeed) or 6
     local t     = os.clock() * speed
     local MAXY  = AR2_LOOK_YAW_MAX
 
+    local function flip(rate) return (math.floor(t * (rate or 3)) % 2 == 0) end
+
     local yawDeg
-    if mode == "Jitter" then
-        yawDeg = (math.floor(t * 3) % 2 == 0) and MAXY or -MAXY
+    if mode == "Backwards" then
+        yawDeg = 180
+    elseif mode == "Backwards Jitter" then
+        yawDeg = 180 + (flip() and 25 or -25)
+    elseif mode == "Sideways" then
+        yawDeg = flip(1.5) and 90 or -90
+    elseif mode == "Spin" then
+        yawDeg = math.deg(t % (math.pi * 2))
+    elseif mode == "Jitter" then
+        yawDeg = flip() and MAXY or -MAXY
     elseif mode == "Sweep" then
-        -- triangle wave across the usable band instead of a full circle,
-        -- because a full circle spends most of its time clamped to zero
         local ph = (t / math.pi) % 2
         yawDeg = (ph < 1 and (ph * 2 - 1) or (3 - ph * 2)) * MAXY
+    elseif mode == "Fold" then
+        yawDeg, pitch = 180, -85
+    elseif mode == "Upside Down" then
+        yawDeg, pitch = 180, 85
+    elseif mode == "Fold Spin" then
+        yawDeg, pitch = math.deg(t % (math.pi * 2)), -85
     elseif mode == "Max Left" then
         yawDeg = -MAXY
     elseif mode == "Max Right" then
         yawDeg = MAXY
-    elseif mode == "Fold" then
-        -- pitch is the unclamped axis, so this is the one that always shows
-        yawDeg = (math.floor(t * 2) % 2 == 0) and MAXY or -MAXY
-        pitch  = -85
     elseif mode == "Random" then
         if (os.clock() - (AR2_lookAARandAt or 0)) > 0.08 then
             AR2_lookAARandAt  = os.clock()
-            AR2_lookAARandYaw = (math.random() * 2 - 1) * MAXY
+            AR2_lookAARandYaw = math.random() * 360
             AR2_lookAARandPit = (math.random() * 2 - 1) * 85
         end
         yawDeg = AR2_lookAARandYaw or 0
         pitch  = AR2_lookAARandPit or 0
     else
-        yawDeg = MAXY
+        yawDeg = 180
     end
 
-    yawDeg = math.clamp(yawDeg, -MAXY, MAXY)
+    -- Only clamp when the body is NOT being turned. Then the packet is all
+    -- we have and the 75 degree cutoff is real.
+    if cfg.moveBody == false then
+        yawDeg = math.clamp(((yawDeg + 180) % 360) - 180, -MAXY, MAXY)
+    end
 
     local base = (typeof(real) == "Vector3" and real.Magnitude > 1e-3) and real
                  or Vector3.new(0, 0, -1)
@@ -22740,6 +22842,77 @@ function AR2_lookAARewrite(args, n)
     AR2_lookAALastFake = fake
     AR2_lookAALastAt   = os.clock()
     return args, n
+end
+
+-- LEGAL-SPEED REPORTING  (the anti-rubberband)
+--
+-- Rubberbanding is the server rejecting a position that moved further than
+-- it believes you can move. We cannot make it accept a teleport, but we can
+-- stop sending one: keep our own idea of where we have "walked" to, advance
+-- it toward the real body at a speed the server tolerates, and report THAT.
+--
+-- The field is found by value, the same way the look vector is -- the live
+-- root position is still exactly the number the game just read, so whichever
+-- argument equals it is the position.
+--
+-- The trade: the server believes you are where the slow marker is, so you
+-- drift behind yourself while flying and catch up when you stop. Shots and
+-- loot are resolved at the reported position, not the real one.
+AR2_reportPos   = nil
+AR2_reportAt    = 0
+AR2_reportDrift = 0
+
+function AR2_reportClampReset()
+    AR2_reportPos, AR2_reportAt, AR2_reportDrift = nil, 0, 0
+end
+
+function AR2_reportClamp(args, n)
+    local ch   = AR2_LocalPlayer and AR2_LocalPlayer.Character
+    local root = ch and ch:FindFirstChild("HumanoidRootPart")
+    if not root then return args, n end
+
+    local realPos = root.Position
+    local now     = os.clock()
+    local maxSpd  = math.clamp(tonumber(AR2_CFG.misc.flySmoothSpeed) or 28, 4, 200)
+
+    if not AR2_reportPos then
+        AR2_reportPos, AR2_reportAt = realPos, now
+        return args, n
+    end
+
+    local dt = math.clamp(now - AR2_reportAt, 0, 0.5)
+    AR2_reportAt = now
+    local toReal = realPos - AR2_reportPos
+    local step   = maxSpd * dt
+
+    if toReal.Magnitude <= step then
+        AR2_reportPos = realPos          -- caught up; nothing to hide
+    else
+        AR2_reportPos = AR2_reportPos + toReal.Unit * step
+    end
+    AR2_reportDrift = (realPos - AR2_reportPos).Magnitude
+
+    for i = 1, n do
+        local v = args[i]
+        if typeof(v) == "Vector3" then
+            if (v - realPos).Magnitude < 0.25 then
+                args[i] = AR2_reportPos
+            elseif v.Magnitude > maxSpd * 1.2 then
+                -- a velocity the server would also reject; report a legal one
+                args[i] = v.Unit * maxSpd
+            end
+        elseif typeof(v) == "CFrame" and (v.Position - realPos).Magnitude < 0.25 then
+            args[i] = v - v.Position + AR2_reportPos
+        end
+    end
+    return args, n
+end
+
+function AR2_flySmoothStatus()
+    return ("legal-speed reporting: %s\ncap %d studs/s\ncurrently %0.1f studs behind your body")
+        :format(AR2_CFG.misc.flySmooth and "ON" or "off",
+                tonumber(AR2_CFG.misc.flySmoothSpeed) or 28,
+                AR2_reportDrift or 0)
 end
 
 function AR2_desyncRewriteState(args, n)
