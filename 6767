@@ -162,10 +162,22 @@ AR2_velocityTracker = setmetatable({}, { __mode = "k" })
 
 AR2_CFG = {
     players  = { on = false, hitCheck = false, box = true, name = true, tracer = false, weapon = true, dist = true, chams = true, maxDist = 2000, healthBar = true, skeleton = false, espHz = 60, kd = false },
-    zombies  = { on = false, box = true, name = false, tracer = false, agro = true, dist = true, maxDist = 500, healthBar = true, skeleton = false,
-                 displayName = true, drops = false, dropsDist = 200, threat = false,
-                 canStun = true, markRare = true, rareBelow = 0.3 },
-    loot     = { on = false, box = false, name = true, tracer = false, chams = true, dist = true, maxDist = 1200, minRank = 0 },
+    zombies  = { on = false, box = true, name = false, tracer = false, agro = true, dist = true, maxDist = 2000, healthBar = true, skeleton = false,
+                 displayName = true, drops = false, dropsDist = 2000, threat = false,
+                 canStun = true, markRare = true, rareBelow = 0.3,
+                 dropsPanel = false, rareDropBelow = 0.15, specialText = true,
+                 panelMax = 6, panelRows = 4,
+                 markEvent = true },
+    events   = { on = false, named = true, zombieClusters = true, tagged = true,
+                 cacheSecs = 5,
+                 clusterRadius = 150, minZombies = 3, range = 10000,
+                 names = true, esp = false,
+                 color = Color3.fromRGB(255, 210, 60) },
+    items    = { on = false, box = true, name = true, dist = true, tracer = false,
+                 maxDist = 2000, color = Color3.fromRGB(120, 230, 255) },
+    loot     = { rankFilledOnly = true, hideEmpty = false, markEmpty = true,
+                 showNodes = true, nodeCount = 3,
+                 on = false, box = false, name = true, tracer = false, chams = true, dist = true, maxDist = 1200, minRank = 0 },
     vehicles = { on = false, box = false, name = true, tracer = false, dist = true, maxDist = 1500, chams = false },
     corpses  = { on = false, box = false, name = true, tracer = false, dist = true, maxDist = 800, playersOnly = false, maxDrawn = 25 },
 
@@ -210,18 +222,26 @@ AR2_CFG = {
 
     rageBot = {
         on = false, maxDist = 800, ignoreFov = false, inventoryShoot = false,
+        -- 1.00 = the weapon's real cadence. Above that you are asking the
+        -- server to accept shots closer together than the gun can physically
+        -- fire; how much it tolerates is a server question, so the counters
+        -- below measure it instead of assuming.
+        rpmBoost = 1.00, burstMode = false, burstShots = 3,
+        originAdjust = true, penBudget = 5,
+        trackAmmo = true, autoReloadInv = true,
+        safeInterval = 0.2, minInterval = 0.08,
         requireADS = false, forceADS = false, adsMinDist = 0, fov = 250,
         panicKey = "L", glitchWarn = true,
-        visCheck = false,
+        visCheck = true,
         multiGap = 0.02,
         legalOnly = false,
     },
     weapon = {
-        noRecoil = false, allFireModes = false,
+        noRecoil = false, allFireModes = false, fireModesSafe = true,
 
-        wallbang = false, wallbangBudget = 12,
-        wallbangFilter = false, wallbangPierce = 12, wallbangTag = false,
-        penBudget = 12, penUnlimited = false, hbeVisual = false, hbeSpoofCast = false,
+        wallbang = false, wallbangBudget = 5,
+        wallbangFilter = false, wallbangPierce = 5, wallbangTag = false,
+        penBudget = 5, penUnlimited = false, hbeVisual = false, hbeSpoofCast = false,
         serverSync = true, spreadComp = true, spreadFlySteady = false,
 
         instaBullets = false,
@@ -269,6 +289,7 @@ AR2_CFG = {
         noclipTPMaxSeconds = 15,
     },
     tp = {
+        instant = false, instantFrames = 3,
         target = "-", behind = 10, above = 0, side = 0,
         travelFly = true, travelAnchor = true, travelSpeed = 4000, travelStep = 120,
         clickKey = "T", playerKey = "Y", mapKey = "L", clickLift = 0,
@@ -282,14 +303,21 @@ AR2_CFG = {
     },
     speed = { on = false, pct = 140, collide = true, pulse = true, pulseOn = 25, pulseOff = 35, adaptive = true, minPct = 105, airborne = false, spoof = false, spoofAs = "Falling" },
     radar = {
+        hz = 15, avatars = true, avatarSize = 22,
+        zombies = { on = false, rareOnly = true, eventsOnly = false,
+                    names = true, range = 4000, max = 60 },
         on = false, names = true, localToo = false, armedColor = true, weapon = false, dist = false,
         vehicles = { on = false, names = true, dist = true },
         corpses  = { on = false, names = true, dist = true },
     },
-    minimap = { on = false, size = 200, x = 10, y = 50, border = 2,
-                borderColor = Color3.fromRGB(230, 40, 50) },
+    minimap = { hz = 20, on = false, size = 200, x = 10, y = 50, border = 2,
+                borderColor = Color3.fromRGB(230, 40, 50),
+                zombies = false, zombiesRareOnly = true, zombieRange = 2000,
+                eventsOnly = false,
+                avatars = true, avatarSize = 18 },
     misc = {
         freecam = false, freecamSpeed = 60, spectate = false, specDist = 10, specNative = true,
+        specHideMinimap = true,
         flySmooth = false, flySmoothSpeed = 28,
         desyncFly = false, freecamDesync = true, desyncHideSelf = true, ownUnlock = false, combatLog = false,
         freecamNative = true, netGuard = true, netGuardBlock = false,
@@ -343,6 +371,10 @@ AR2_CFG = {
         cosUnlock = false,
         instantInteract = false, playerJesus = false,
         selfBacktrack = { enabled = false, color = Color3.fromRGB(255,255,255), transparency = 0.4, material = Enum.Material.ForceField, delay = 0.3 },
+        invisFixV2 = false,
+        invis = { on = false, caseName = "Binoculars", reapply = true,
+                  server = false, reassert = false, reassertSecs = 1,
+                  autoGuard = true },
         jumpCircle = { enabled = false, color = Color3.new(1,1,1), startRadius = 1, endRadius = 12, duration = 1.2 },
         removeShadows = false,
         killEsp = false, killEspDist = 400, killEspFill = 0.72,
@@ -355,6 +387,7 @@ AR2_CFG = {
         enemyMorphMax = 6, enemyMorphPartCap = 60, ownedIndex = 1,
         enemyMorphNear = 18, enemyMorphFar = 900, enemyMorphNoHide = false,
         guiUnlock = false, dressPreviews = true, guiDressOnClick = true,
+        guiUnlockAnyGui = true,
         outfitSave = "", outfitAuto = true, cosRemoveAll = false,
         interactFar = false, interactRange = 120, interactMult = 2, interactXray = false,
         vaultFar = false, vaultMult = 3, vaultAny = false, vaultRadius = 40,
@@ -704,6 +737,7 @@ AR2_COLORS = {
     info    = Color3.fromRGB(220, 220, 225),
     canHit  = Color3.fromRGB(70, 255, 130),
     rareZombie = Color3.fromRGB(255, 190, 60),
+    item    = Color3.fromRGB(120, 230, 255),
 }
 
 
@@ -1003,6 +1037,23 @@ function AR2_loadConfigByName(name)
     if not decoded or type(data) ~= "table" then return false end
     AR2_mergeInto(AR2_CFG, AR2_stripCosmetics(AR2_jsonRestore(data.cfg)))
     AR2_mergeInto(AR2_SETTINGS, AR2_jsonRestore(data.settings))
+
+    -- One-time correction: invis re-assert shipped defaulted ON, and it spams
+    -- Character Toggle Binoculars once a second. That makes the animator solve
+    -- arm IK against pose data that does not exist -- hundreds of errors a
+    -- second and climbing memory. A new default cannot help anyone who already
+    -- has it saved, so turn it off once and say so. Setting it again by hand
+    -- sticks, because the marker is written either way.
+    pcall(function()
+        if AR2_CFG.misc and AR2_CFG.misc.invis and not AR2_CFG.misc.invisFixV2 then
+            AR2_CFG.misc.invisFixV2 = true
+            if AR2_CFG.misc.invis.reassert == true then
+                AR2_CFG.misc.invis.reassert = false
+                AR2_notify("invis re-assert turned off (it was breaking the "
+                           .. "character animator)", 7)
+            end
+        end
+    end)
 
     return AR2_applyLoadedConfig()
 end
@@ -1920,6 +1971,38 @@ function AR2_zombieDropNames(cfg)
     return names
 end
 
+-- CorpseDrops values vary in shape: a bare number is a chance, a table may
+-- carry Chance/Weight/Rarity. Return name + chance so rare items can be
+-- marked instead of every drop reading the same.
+function AR2_zombieDropList(cfg)
+    local t = type(cfg) == "table" and cfg.CorpseDrops
+    if type(t) ~= "table" then return nil end
+    local list = {}
+    for k, v in pairs(t) do
+        local nm, chance
+        if type(k) == "string" then nm = k end
+        if type(v) == "number" then chance = v
+        elseif type(v) == "string" then nm = nm or v
+        elseif type(v) == "table" then
+            nm = nm or (type(v.Name) == "string" and v.Name or nil)
+            chance = tonumber(v.Chance) or tonumber(v.Weight) or tonumber(v.Rarity)
+                     or tonumber(v.Probability)
+        end
+        if nm then
+            list[#list + 1] = { name = nm, chance = chance }
+        end
+    end
+    if #list == 0 then return nil end
+    -- rarest first: unknown chances sort last so known-rare items lead
+    table.sort(list, function(a, b)
+        local ca = a.chance or math.huge
+        local cb = b.chance or math.huge
+        if ca ~= cb then return ca < cb end
+        return a.name < b.name
+    end)
+    return list
+end
+
 function AR2_zombieDropText(cfg, maxItems)
     local names = AR2_zombieDropNames(cfg)
     if not names then return nil end
@@ -1947,10 +2030,24 @@ function AR2_buildZombie(model)
         threat    = cfg and tonumber(cfg.ThreatLevel) or nil,
         rarity    = cfg and tonumber(cfg.SpawnRarity) or nil,
         canStun   = cfg and cfg.CanStunPlayers == true or false,
+        isEvent   = AR2_zombieIsEvent(model.Name),
+        isUnique  = AR2_zombieIsUnique(model.Name),
         stealthMod= cfg and tonumber(cfg.StealthKillLootModifier) or nil,
     }
 end
 
+
+-- Recon finding: event zombies are named by suffix and prefix, not by any
+-- attribute -- "Unique Servant Goat Skull Tan Event", "Unique Abomination
+-- Basalt Black Event", "Unique Rogue Helicopter Pilot". That is far more
+-- reliable than inferring from SpawnRarity, which is a spawn weight and says
+-- nothing about whether a zombie belongs to a live event.
+function AR2_zombieIsEvent(name)
+    return string.find(string.lower(tostring(name or "")), "event", 1, true) ~= nil
+end
+function AR2_zombieIsUnique(name)
+    return string.find(tostring(name or ""), "^Unique ") ~= nil
+end
 
 AR2_ZOMBIE_NAME_HINTS = { "infected", "zombie", "walker", "crawler", "runner" }
 function AR2_corpseLooksInfected(name)
@@ -2038,12 +2135,55 @@ function AR2_collect(container, builder)
     return list
 end
 
+-- Recon finding: a crate's NumberValue children are loot TABLE categories,
+-- not contents -- "Ammo Military" x2, both value 0, on a crate whose
+-- DisplayName is "Ammunition Can". Two children share one name, so this is a
+-- slot list. The old reader returned both as separate entries and threw the
+-- values away, so AR2_rankOf matched "military" and painted an empty crate
+-- rank 4. Dedupe by name, keep the numbers, and report whether anything is
+-- actually in there.
 function AR2_readLootNodes(model)
-    local nodes = {}
+    local byName, order = {}, {}
     for _, child in ipairs(model:GetChildren()) do
-        if child:IsA("NumberValue") then nodes[#nodes + 1] = { name = child.Name, value = child.Value } end
+        if child:IsA("NumberValue") then
+            local n = child.Name
+            local rec = byName[n]
+            if not rec then
+                rec = { name = n, value = 0, slots = 0 }
+                byName[n] = rec
+                order[#order + 1] = rec
+            end
+            rec.slots = rec.slots + 1
+            local v = tonumber(child.Value) or 0
+            rec.value = rec.value + v
+        end
     end
-    return nodes
+    table.sort(order, function(a, b)
+        if a.value ~= b.value then return a.value > b.value end
+        return a.name < b.name
+    end)
+    return order
+end
+
+-- total of every node value; 0 means nothing has spawned in this container
+-- (or it has not been simulated yet -- workspace has a "Loot Simulation"
+-- folder, so population may well be proximity-driven)
+function AR2_lootFilledCount(nodes)
+    local total = 0
+    for _, n in ipairs(nodes) do total = total + (tonumber(n.value) or 0) end
+    return total
+end
+
+function AR2_lootNodeText(nodes, maxItems)
+    local parts = {}
+    for i = 1, math.min(#nodes, maxItems or 3) do
+        local n = nodes[i]
+        parts[#parts + 1] = (n.value > 0)
+            and ("%s %d"):format(n.name, n.value)
+            or  n.name
+    end
+    local extra = #nodes - #parts
+    return table.concat(parts, ", ") .. (extra > 0 and (" +" .. extra) or "")
 end
 
 function AR2_collectLoot(radius, filter)
@@ -2066,6 +2206,7 @@ function AR2_collectLoot(radius, filter)
                         kind = "loot", model = model, name = model.Name,
                         displayName = model:GetAttribute("DisplayName") or model.Name,
                         root = anchor, position = anchor.Position, distance = dist, nodes = nodes,
+                        filled = AR2_lootFilledCount(nodes),
                     }
                 end
             end
@@ -2183,6 +2324,312 @@ function AR2_api.corpses()
     end)
 end
 
+
+-- ===== GROUND ITEMS (dropped loot / cosmetics) =============================
+-- Recon finding: dropping an item creates
+--     workspace/Map/Elements/ItemNodeBin/ItemNodeBin  [Model, tag "Core Model"]
+--       ItemNode  [Part,  tags "Entity Loot Node"]
+--       Model     [Model, tag "__Interactable"]
+-- and picking it back up removes exactly that. So ground items are their own
+-- container folder, not part of the crate system.
+--
+-- Reading them off the folder beats sweeping the "Entity Loot Node" tag,
+-- which has ~12800 members because every crate slot carries it too.
+AR2_ItemBin = nil
+AR2_ITEM_NAME_ATTRS = { "DisplayName", "ItemName", "Item", "Name" }
+
+function AR2_resolveItemBin()
+    if AR2_ItemBin and AR2_ItemBin.Parent then return AR2_ItemBin end
+    AR2_ItemBin = nil
+    pcall(function()
+        local map = AR2_Workspace:FindFirstChild("Map")
+        local el  = map and map:FindFirstChild("Elements")
+        AR2_ItemBin = el and el:FindFirstChild("ItemNodeBin") or nil
+    end)
+    return AR2_ItemBin
+end
+
+-- The path carries no item name, so try every place one could hide. Falls
+-- back to a generic label rather than inventing a name.
+function AR2_groundItemName(model)
+    local nm
+    for _, a in ipairs(AR2_ITEM_NAME_ATTRS) do
+        pcall(function()
+            local v = model:GetAttribute(a)
+            if type(v) == "string" and #v > 0 then nm = nm or v end
+        end)
+    end
+    if nm then return nm, "attr" end
+
+    for _, ch in ipairs(model:GetChildren()) do
+        if ch:IsA("StringValue") then
+            local ok, v = pcall(function() return ch.Value end)
+            if ok and type(v) == "string" and #v > 0 then return v, "stringvalue" end
+            return ch.Name, "stringvalue-name"
+        end
+    end
+    for _, ch in ipairs(model:GetChildren()) do
+        if ch:IsA("NumberValue") then return ch.Name, "numbervalue-name" end
+    end
+    -- deepest mesh usually carries the asset's own name
+    local best
+    pcall(function()
+        for _, d in ipairs(model:GetDescendants()) do
+            if d:IsA("MeshPart") and #d.Name > 2
+               and d.Name ~= "Base" and d.Name ~= "Action" then
+                best = best or d.Name
+            end
+        end
+    end)
+    if best then return best, "mesh" end
+    return "Item", "unknown"
+end
+
+function AR2_buildGroundItem(model)
+    local anchor = model:FindFirstChild("ItemNode")
+                   or model.PrimaryPart
+                   or model:FindFirstChildWhichIsA("BasePart")
+    if not anchor then return nil end
+    local nm, src = AR2_groundItemName(model)
+    return {
+        kind = "grounditem", model = model, name = nm, nameFrom = src,
+        root = anchor, position = anchor.Position,
+        distance = (anchor.Position - AR2_ORIGIN).Magnitude,
+    }
+end
+
+function AR2_api.groundItems()
+    return AR2_cached("grounditems", 0.4, function()
+        AR2_ORIGIN = AR2_localPosition()
+        local bin = AR2_resolveItemBin()
+        if not bin then return {} end
+        local list = {}
+        for _, ch in ipairs(bin:GetChildren()) do
+            if ch:IsA("Model") then
+                local e = AR2_buildGroundItem(ch)
+                if e then list[#list + 1] = e end
+            end
+        end
+        table.sort(list, function(a, b) return a.distance < b.distance end)
+        return list
+    end)
+end
+
+
+-- ===== RANDOM EVENT RADAR ==================================================
+-- Built from what the recon actually proved, not from a guess at a config
+-- table: Framework.Configs has no Events/RandomEvents/Encounters, so there is
+-- no authoritative list to read. What there IS:
+--
+--   * event zombies, named by suffix/prefix -- "Unique Abomination Basalt
+--     Black Event", "Unique Rogue Helicopter Pilot"
+--   * tagged world entities -- Entity Quest Node (44), Entity Item Spawner
+--     (7, e.g. DemonicAltarSpawner), Entity Quest Zone, Entity Deployable
+--
+-- The key move is CLUSTERING. One unique zombie is not an event; five of them
+-- standing together is. Clustering turns twenty blips into one marker that
+-- says where the event actually is, which is the thing you want to read off a
+-- map at a glance.
+AR2_EVENT_TAGS = {
+    "Entity Quest Node", "Entity Item Spawner",
+    "Entity Quest Zone", "Entity Deployable",
+}
+
+function AR2_eventClusters(list, radius, minCount)
+    local used, out = {}, {}
+    for i, a in ipairs(list) do
+        if not used[i] then
+            used[i] = true
+            local members = { a }
+            local sum = a.position
+            for j = i + 1, #list do
+                local b = list[j]
+                if not used[j] and (b.position - a.position).Magnitude <= radius then
+                    used[j] = true
+                    members[#members + 1] = b
+                    sum = sum + b.position
+                end
+            end
+            if #members >= minCount then
+                -- name the cluster after whatever is most represented in it
+                local tally, best, bestN = {}, nil, 0
+                for _, m in ipairs(members) do
+                    local nm = tostring(m.label or m.name or "?")
+                    tally[nm] = (tally[nm] or 0) + 1
+                    if tally[nm] > bestN then best, bestN = nm, tally[nm] end
+                end
+                out[#out + 1] = {
+                    kind = "event",
+                    position = sum / #members,
+                    count = #members,
+                    label = best or "event",
+                    members = members,
+                }
+            end
+        end
+    end
+    return out
+end
+
+
+-- NAMED WORLD EVENTS (Operator Crash, Castle Rifts, ...)
+-- Framework.Configs has no "Events" table, but it does have "Entity Groups",
+-- and the one key the probe printed was "Castle Rifts" -- an event name. So
+-- that table IS the event list, and reading its keys at runtime means we
+-- never hardcode a name the game might rename or add to.
+--
+-- Matching is done on a squashed name (lowercase, no spaces/underscores)
+-- because the config key "Operator Crash" and the instance "OperatorCrash01"
+-- are the same event spelled two ways.
+AR2_eventNames   = nil
+AR2_eventNamesAt = 0
+
+local function squash(x)
+    return (tostring(x or ""):lower():gsub("[%s_%-]", ""))
+end
+
+function AR2_eventGroupNames(force)
+    if AR2_eventNames and not force
+       and (os.clock() - AR2_eventNamesAt) < 30 then
+        return AR2_eventNames
+    end
+    local names = {}
+    pcall(function()
+        local fw = require(AR2_ReplicatedFirst:WaitForChild("Framework", 10))
+        for _, key in ipairs({ "Entity Groups", "EntityGroups" }) do
+            local t = fw.Configs and fw.Configs[key]
+            if type(t) == "table" then
+                for k in pairs(t) do
+                    if type(k) == "string" and #k > 2 then names[#names+1] = k end
+                end
+            end
+        end
+    end)
+    -- Known AR2 event names as a floor, so the radar still works if the
+    -- config route fails. Config-derived names are always preferred.
+    if #names == 0 then
+        names = { "Operator Crash", "Castle Rifts", "Supply Drop", "Airdrop",
+                  "Helicopter Crash", "Convoy", "Horde", "Outbreak",
+                  "Cargo Drop", "Military Convoy", "Crash Site" }
+        AR2_eventNamesFrom = "fallback list (Entity Groups unreadable)"
+    else
+        AR2_eventNamesFrom = "Framework.Configs['Entity Groups']"
+    end
+    AR2_eventNames, AR2_eventNamesAt = names, os.clock()
+    return names
+end
+
+-- find live instances whose name matches any event name
+function AR2_scanNamedEvents(out)
+    local names = AR2_eventGroupNames()
+    local sq = {}
+    for _, n in ipairs(names) do sq[#sq+1] = { raw = n, s = squash(n) } end
+    if #sq == 0 then return end
+
+    local roots = {}
+    pcall(function()
+        local map = AR2_Workspace:FindFirstChild("Map")
+        if map then
+            for _, child in ipairs(map:GetChildren()) do roots[#roots+1] = child end
+        end
+        for _, child in ipairs(AR2_Workspace:GetChildren()) do
+            if child.Name ~= "Map" and child.Name ~= "Terrain" then
+                roots[#roots+1] = child
+            end
+        end
+    end)
+
+    local seen, budget = {}, 20000
+    local function walk(inst, depth)
+        if depth > 3 or budget <= 0 then return end
+        for _, ch in ipairs(inst:GetChildren()) do
+            budget = budget - 1
+            if budget <= 0 then return end
+            local cs = squash(ch.Name)
+            for _, e in ipairs(sq) do
+                if #cs > 0 and string.find(cs, e.s, 1, true) and not seen[ch] then
+                    seen[ch] = true
+                    local pos
+                    if ch:IsA("BasePart") then pos = ch.Position
+                    elseif ch:IsA("Model") then
+                        local pp = ch.PrimaryPart or ch:FindFirstChildWhichIsA("BasePart")
+                        pos = pp and pp.Position
+                    end
+                    if pos then
+                        out[#out+1] = {
+                            kind = "event", position = pos, count = 1,
+                            label = e.raw, why = "named: " .. ch.Name,
+                            distance = (pos - AR2_ORIGIN).Magnitude,
+                            model = ch:IsA("Model") and ch or nil,
+                        }
+                    end
+                    break
+                end
+            end
+            if ch:IsA("Folder") or ch:IsA("Model") then walk(ch, depth + 1) end
+        end
+    end
+    for _, r in ipairs(roots) do
+        if budget > 0 then pcall(walk, r, 1) end
+    end
+end
+
+function AR2_api.events()
+    -- 1s was far too hot: AR2_scanNamedEvents walks up to 20k instances of
+    -- the map. Events appear on a timescale of minutes, so 5s is still far
+    -- faster than anything can actually change.
+    return AR2_cached("events", tonumber(AR2_CFG.events.cacheSecs) or 5, function()
+        AR2_ORIGIN = AR2_localPosition()
+        local c = AR2_CFG.events
+        local out = {}
+
+        if c.zombieClusters then
+            local pts = {}
+            for _, e in ipairs(AR2_api.zombies()) do
+                if (e.isEvent or e.isUnique) and e.position then
+                    pts[#pts + 1] = e
+                end
+            end
+            local radius = tonumber(c.clusterRadius) or 150
+            local minN   = math.max(1, math.floor(tonumber(c.minZombies) or 3))
+            for _, cl in ipairs(AR2_eventClusters(pts, radius, minN)) do
+                cl.distance = (cl.position - AR2_ORIGIN).Magnitude
+                cl.why = ("%d unique"):format(cl.count)
+                out[#out + 1] = cl
+            end
+        end
+
+        if c.named then pcall(AR2_scanNamedEvents, out) end
+
+        if c.tagged then
+            for _, tag in ipairs(AR2_EVENT_TAGS) do
+                pcall(function()
+                    for _, inst in ipairs(AR2_CollectionService:GetTagged(tag)) do
+                        local pos
+                        if inst:IsA("BasePart") then pos = inst.Position
+                        elseif inst:IsA("Model") then
+                            local pp = inst.PrimaryPart
+                                or inst:FindFirstChildWhichIsA("BasePart")
+                            pos = pp and pp.Position
+                        end
+                        if pos then
+                            out[#out + 1] = {
+                                kind = "event", position = pos, count = 1,
+                                label = inst.Name, why = tag,
+                                distance = (pos - AR2_ORIGIN).Magnitude,
+                                model = inst,
+                            }
+                        end
+                    end
+                end)
+            end
+        end
+
+        table.sort(out, function(a, b) return a.distance < b.distance end)
+        return out
+    end)
+end
+
 function AR2_api.loot(radius, filter)
     radius = radius or 1500
     return AR2_cached("loot:" .. radius .. ":" .. tostring(filter), 1.0, function()
@@ -2208,7 +2655,15 @@ AR2_TIER_COLOR = {
 function AR2_rankOf(entry)
     local best = 0
     local haystack = { string.lower(entry.name), string.lower(entry.displayName or "") }
-    for _, node in ipairs(entry.nodes) do haystack[#haystack + 1] = string.lower(node.name) end
+    -- Only rank off nodes that actually hold something. Otherwise an empty
+    -- crate whose table merely MENTIONS "military" paints rank 4 and sends
+    -- you across the map for nothing.
+    local onlyFilled = AR2_CFG.loot and AR2_CFG.loot.rankFilledOnly
+    for _, node in ipairs(entry.nodes) do
+        if (not onlyFilled) or (tonumber(node.value) or 0) > 0 then
+            haystack[#haystack + 1] = string.lower(node.name)
+        end
+    end
     for _, tier in ipairs(AR2_RANK) do
         if tier.score > best then
             for _, word in ipairs(tier.words) do
@@ -2703,6 +3158,41 @@ end
 
 function AR2_fmtDist(d) return string.format("%.0f", d) end
 
+-- Event clusters are a computed centroid, not an Instance, so AR2_drawEntity
+-- (which wants a model to box) cannot render them. Pooled text instead.
+AR2_worldTextPool = {}
+AR2_worldTextUsed = 0
+function AR2_drawWorldTextReset() AR2_worldTextUsed = 0 end
+function AR2_drawWorldTextHide(from)
+    for i = from, #AR2_worldTextPool do
+        AR2_worldTextPool[i].a.Visible = false
+        AR2_worldTextPool[i].b.Visible = false
+    end
+end
+function AR2_drawWorldText(pos, line1, line2, colour)
+    if not AR2_hasDrawing then return false end
+    local cam = AR2_Workspace.CurrentCamera
+    if not cam then return false end
+    local sp, on = cam:WorldToViewportPoint(pos)
+    if not on or sp.Z <= 0 then return false end
+    AR2_worldTextUsed = AR2_worldTextUsed + 1
+    local slot = AR2_worldTextPool[AR2_worldTextUsed]
+    if not slot then
+        slot = { a = AR2_mkText(AR2_CFG.style.textSize),
+                 b = AR2_mkText(AR2_CFG.style.textSize - 1) }
+        AR2_worldTextPool[AR2_worldTextUsed] = slot
+    end
+    slot.a.Text = line1 or ""
+    slot.a.Color = colour or Color3.fromRGB(255, 210, 60)
+    slot.a.Position = Vector2.new(sp.X, sp.Y)
+    slot.a.Visible = true
+    slot.b.Text = line2 or ""
+    slot.b.Color = colour or Color3.fromRGB(255, 210, 60)
+    slot.b.Position = Vector2.new(sp.X, sp.Y + AR2_CFG.style.textSize + 1)
+    slot.b.Visible = (line2 ~= nil and line2 ~= "")
+    return true
+end
+
 AR2_perfEspLast, AR2_perfEspSum, AR2_perfEspN, AR2_perfEspMax = 0, 0, 0, 0
 AR2_perfSpikes = {}
 
@@ -2817,16 +3307,31 @@ function AR2_buildFrame()
                 local color = hostile and AR2_COLORS.agro or AR2_COLORS.zombie
 
 
-                local rare = e.rarity ~= nil and e.rarity <= (tonumber(c.rareBelow) or 0.3)
+                local rare = (c.markEvent and (e.isEvent or e.isUnique))
+                    or (e.rarity ~= nil and e.rarity <= (tonumber(c.rareBelow) or 0.3))
                 if rare and c.markRare then color = AR2_COLORS.rareZombie or color end
 
+                -- With the panel on, all of this lives in the panel instead;
+                -- printing it twice is the clutter the panel was meant to fix.
                 local bits = {}
-                if c.agro and hostile then bits[#bits+1] = e.agroState end
-                if c.threat and e.threat then bits[#bits+1] = "T" .. tostring(e.threat) end
-                if c.canStun and e.canStun then bits[#bits+1] = "STUNS" end
-                if c.dist then bits[#bits+1] = AR2_fmtDist(e.distance) .. "s" end
-                if c.drops and e.drops and e.distance <= (tonumber(c.dropsDist) or 200) then
-                    bits[#bits+1] = "[" .. e.drops .. "]"
+                local panelHasIt = c.dropsPanel
+                    and e.distance <= (tonumber(c.dropsDist) or 2000)
+                if not panelHasIt then
+                    if c.agro and hostile then bits[#bits+1] = e.agroState end
+                    if c.threat and e.threat then bits[#bits+1] = "T" .. tostring(e.threat) end
+                    if c.canStun and e.canStun then bits[#bits+1] = "STUNS" end
+                    if c.specialText and rare then
+                        bits[#bits+1] = e.isEvent and "EVENT"
+                            or (e.isUnique and "UNIQUE")
+                            or (e.rarity and ("SPECIAL %.2f"):format(e.rarity))
+                            or "SPECIAL"
+                    end
+                    if c.drops and e.drops and e.distance <= (tonumber(c.dropsDist) or 200) then
+                        bits[#bits+1] = "[" .. e.drops .. "]"
+                    end
+                end
+                if c.dist and not panelHasIt then
+                    bits[#bits+1] = AR2_fmtDist(e.distance) .. "s"
                 end
 
 
@@ -2852,15 +3357,61 @@ function AR2_buildFrame()
         for _, e in ipairs(AR2_api.loot(c.maxDist)) do
             if drawn >= 35 then break end
             local rank = AR2_rankOf(e)
-            if rank >= c.minRank then
+            local empty = (e.filled or 0) <= 0
+            if rank >= c.minRank and not (c.hideEmpty and empty) then
                 local color = AR2_TIER_COLOR[rank] or AR2_TIER_COLOR[0]
                 local bits = {}
                 if c.dist then bits[#bits+1] = AR2_fmtDist(e.distance) .. "s" end
+                if c.showNodes and #e.nodes > 0 then
+                    -- labelled as a table, because that is what it is
+                    bits[#bits+1] = (empty and "table: " or "")
+                        .. AR2_lootNodeText(e.nodes, c.nodeCount or 3)
+                end
+                if c.markEmpty and empty then bits[#bits+1] = "EMPTY" end
                 if AR2_drawEntity(e.model, color, c.name and e.displayName or nil, table.concat(bits, "  "), c) then
                     counts.loot = counts.loot + 1
                     drawn = drawn + 1
                 end
                 if c.chams and rank >= 4 then AR2_applyChams(e.model, color) end
+            end
+        end
+    end
+
+
+    if AR2_CFG.events.on and AR2_CFG.events.esp then
+        local c = AR2_CFG.events
+        for _, e in ipairs(AR2_api.events()) do
+            if e.distance <= (tonumber(c.range) or 10000) then
+                -- a cluster has no model, so draw at its centroid
+                local txt = (e.count > 1)
+                    and ("EVENT %s x%d"):format(e.label, e.count)
+                    or  ("EVENT %s"):format(e.label)
+                if e.model then
+                    AR2_drawEntity(e.model, c.color, txt,
+                                   AR2_fmtDist(e.distance) .. "s", c)
+                else
+                    AR2_drawWorldText(e.position, txt,
+                                      AR2_fmtDist(e.distance) .. "s", c.color)
+                end
+            end
+        end
+    end
+
+    AR2_drawWorldTextHide(AR2_worldTextUsed + 1)
+
+    if AR2_CFG.items.on then
+        local c = AR2_CFG.items
+        local drawn = 0
+        for _, e in ipairs(AR2_api.groundItems()) do
+            if drawn >= 40 then break end
+            if e.distance <= (c.maxDist or 2000) then
+                local bits = {}
+                if c.dist then bits[#bits+1] = AR2_fmtDist(e.distance) .. "s" end
+                if AR2_drawEntity(e.model, c.color or AR2_COLORS.item,
+                                  c.name and e.name or nil,
+                                  table.concat(bits, "  "), c) then
+                    drawn = drawn + 1
+                end
             end
         end
     end
@@ -2943,7 +3494,8 @@ end
 
 AR2_espConn = nil
 function AR2_esp.update()
-    local anyOn = AR2_CFG.players.on or AR2_CFG.zombies.on or AR2_CFG.loot.on or AR2_CFG.vehicles.on or AR2_CFG.corpses.on
+    AR2_drawWorldTextReset()
+    local anyOn = AR2_CFG.players.on or AR2_CFG.zombies.on or AR2_CFG.loot.on or AR2_CFG.vehicles.on or AR2_CFG.corpses.on or AR2_CFG.items.on or (AR2_CFG.events.on and AR2_CFG.events.esp)
     if anyOn and not AR2_espConn then AR2_esp.start()
     elseif not anyOn and AR2_espConn then AR2_esp.stop() end
 end
@@ -3607,6 +4159,16 @@ do
         dot.ZIndex = zbase + 5
         local round = Instance.new("UICorner") round.CornerRadius = UDim.new(1,0) round.Parent = dot
         local edge = Instance.new("UIStroke") edge.Color = Color3.fromRGB(0,0,0) edge.Thickness = 1.5 edge.Transparency = 0.25 edge.Parent = dot
+        -- rbxthumb resolves client side with no web request and no rate limit,
+        -- so a headshot costs the same as the plain dot it replaces
+        local av = Instance.new("ImageLabel")
+        av.Name = "Av"
+        av.BackgroundTransparency = 1
+        av.Size = UDim2.fromScale(1, 1)
+        av.Visible = false
+        av.ZIndex = zbase + 6
+        av.Parent = dot
+        local avr = Instance.new("UICorner") avr.CornerRadius = UDim.new(1,0) avr.Parent = av
         local name = Instance.new("TextLabel")
         name.Name = "Name"
         name.BackgroundTransparency = 1
@@ -3652,7 +4214,7 @@ do
         local seen, drawn = {}, 0
 
 
-        local function place(key, worldPos, colour, labelText)
+        local function place(key, worldPos, colour, labelText, userId, dotSize)
             seen[key] = true
             local dot = radarDots[key]
             if not dot or dot.Parent ~= parent then
@@ -3664,6 +4226,32 @@ do
             local x, z = worldToMap(worldPos)
             dot.Position = UDim2.fromScale(x, z)
             dot.BackgroundColor3 = colour
+
+            local av = dot:FindFirstChild("Av")
+            local wantAvatar = AR2_CFG.radar.avatars and userId and userId > 0
+            if av then
+                if wantAvatar then
+                    local sz = math.clamp(tonumber(AR2_CFG.radar.avatarSize) or 22, 10, 48)
+                    dot.Size = UDim2.fromOffset(sz, sz)
+                    local want = ("rbxthumb://type=AvatarHeadShot&id=%d&w=48&h=48"):format(userId)
+                    if av.Image ~= want then av.Image = want end
+                    av.Visible = true
+                    -- the coloured frame becomes the ring around the portrait
+                    dot.BackgroundTransparency = 1
+                    local st = dot:FindFirstChildOfClass("UIStroke")
+                    if st then st.Color = colour st.Thickness = 2 st.Transparency = 0 end
+                else
+                    av.Visible = false
+                    dot.BackgroundTransparency = 0
+                    dot.Size = UDim2.fromOffset(dotSize or 12, dotSize or 12)
+                    local st = dot:FindFirstChildOfClass("UIStroke")
+                    if st then
+                        st.Color = Color3.fromRGB(0,0,0)
+                        st.Thickness = 1.5
+                        st.Transparency = 0.25
+                    end
+                end
+            end
             local label = dot:FindFirstChild("Name")
             if label then
                 label.Text = labelText or ""
@@ -3682,7 +4270,10 @@ do
                 if AR2_CFG.radar.names then parts[#parts+1] = e.name end
                 if AR2_CFG.radar.weapon and e.item then parts[#parts+1] = "["..e.item.."]" end
                 if AR2_CFG.radar.dist then parts[#parts+1] = string.format("%.0fs", e.distance) end
-                place("p:"..e.name, e.root.Position, radarColorFor(e), #parts>0 and table.concat(parts,"  ") or nil)
+                local uid = 0
+                pcall(function() uid = (e.player and e.player.UserId) or 0 end)
+                place("p:"..e.name, e.root.Position, radarColorFor(e),
+                      #parts>0 and table.concat(parts,"  ") or nil, uid)
             end
         end
 
@@ -3711,6 +4302,59 @@ do
             end
         end
 
+        -- Zombies live on this map only, not the minimap: at 10k studs the
+        -- minimap cannot separate them and the full map can.
+        local zc = AR2_CFG.radar.zombies
+        if type(zc) == "table" and zc.on then
+            local range  = tonumber(zc.range) or 4000
+            local rareAt = tonumber(AR2_CFG.zombies.rareBelow) or 0.3
+            local shown  = 0
+            for _, e in ipairs(AR2_api.zombies()) do
+                if shown >= (tonumber(zc.max) or 60) then break end
+                if e.distance and e.distance <= range and e.root then
+                    local isEvt  = e.isEvent or e.isUnique
+                    local isRare = isEvt or (e.rarity ~= nil and e.rarity <= rareAt)
+                    local show
+                    if zc.eventsOnly then show = isEvt
+                    elseif zc.rareOnly then show = isRare
+                    else show = true end
+                    if show then
+                        shown = shown + 1
+                        local col = isEvt and Color3.fromRGB(255, 210, 60)
+                            or (isRare and Color3.fromRGB(255, 70, 80)
+                                       or Color3.fromRGB(150, 230, 120))
+                        local lbl
+                        if zc.names then
+                            lbl = e.label or e.name
+                            if isEvt then lbl = "EVENT " .. tostring(lbl) end
+                        end
+                        place("z:" .. e.model:GetFullName(), e.root.Position, col, lbl,
+                              nil, isEvt and 13 or (isRare and 11 or 8))
+                    end
+                end
+            end
+        end
+
+        -- random events: one marker per cluster, drawn above everything else
+        if AR2_CFG.events.on then
+            local ec = AR2_CFG.events
+            for _, e in ipairs(AR2_api.events()) do
+                if e.distance <= (tonumber(ec.range) or 10000) then
+                    local lbl
+                    if ec.names then
+                        lbl = (e.count > 1)
+                            and ("EVENT  %s x%d"):format(e.label, e.count)
+                            or  ("EVENT  %s"):format(e.label)
+                    end
+                    place("ev:" .. tostring(e.label) .. ":" ..
+                          tostring(math.floor(e.position.X)) .. "_" ..
+                          tostring(math.floor(e.position.Z)),
+                          e.position, ec.color, lbl, nil,
+                          math.clamp(10 + e.count * 2, 10, 22))
+                end
+            end
+        end
+
         AR2_radar.drawn = drawn
         for key, dot in pairs(radarDots) do
             if not seen[key] then dot:Destroy() radarDots[key] = nil end
@@ -3721,7 +4365,15 @@ do
         if radarConn then return end
         AR2_radar.running = true
         AR2_radar.layer = "starting"
+        -- Was unthrottled RenderStepped: at 180fps that is 180 full rebuilds
+        -- a second of a map overlay nobody can read faster than ~15. Each pass
+        -- walks players, vehicles, corpses, zombies and events.
+        local nextAt = 0
         radarConn = AR2_RunService.RenderStepped:Connect(function()
+            local now = os.clock()
+            local hz  = math.clamp(tonumber(AR2_CFG.radar.hz) or 15, 2, 60)
+            if now < nextAt then return end
+            nextAt = now + (1 / hz)
             local ok, err = pcall(radarStep)
             if not ok then AR2_radar.layer = "error: "..tostring(err) end
         end)
@@ -3817,6 +4469,511 @@ function AR2_buildMinimap()
     AR2_minimapYouDot.Parent = AR2_minimapImg
 end
 
+
+do -- scope fence: the main chunk is near Luau's 200-local cap,
+   -- so the panel's palette/helpers must not live at file scope.
+-- ===== ZOMBIE DROPS PANEL ==================================================
+-- Replaces the "[Bandage, Rope, Ammo +3]" string crammed under the model.
+-- A list of drops is a table, so it gets a table: fixed panel, one row per
+-- item, rarest first, chance on the right. Rare items get the accent and a
+-- marker bar rather than being the same grey as a bandage.
+--
+-- Deliberately plain: one accent hairline at the top, one divider, no glow,
+-- no gradient, no rounded-everything. Two type sizes and two weights.
+AR2_DROPPANEL = { gui = nil, rows = {}, target = nil }
+
+local DP_BG     = Color3.fromRGB(13, 12, 13)
+local DP_HEAD   = Color3.fromRGB(19, 17, 19)
+local DP_LINE   = Color3.fromRGB(38, 26, 29)
+local DP_ACCENT = Color3.fromRGB(226, 29, 44)
+local DP_TEXT   = Color3.fromRGB(236, 233, 234)
+local DP_DIM    = Color3.fromRGB(138, 128, 131)
+
+local function dpFont(names)
+    for _, n in ipairs(names) do
+        local ok, f = pcall(function() return Enum.Font[n] end)
+        if ok and f then return f end
+    end
+    return Enum.Font.Gotham
+end
+local DP_F_BODY = dpFont({ "BuilderSansMedium", "GothamMedium", "Gotham" })
+local DP_F_BOLD = dpFont({ "BuilderSansBold", "GothamBold", "GothamSemibold" })
+local DP_F_NUM  = Enum.Font.Code
+
+local function dpBuild()
+    local host = (gethui and gethui()) or game:GetService("CoreGui")
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "AR2_DropPanel"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    pcall(function() gui.Parent = host end)
+
+    local root = Instance.new("Frame")
+    root.Name = "Root"
+    root.Size = UDim2.fromOffset(236, 60)
+    root.Position = UDim2.new(1, -252, 0, 90)
+    root.BackgroundColor3 = DP_BG
+    root.BorderSizePixel = 0
+    root.Active = true
+    root.Draggable = true
+    root.Parent = gui
+    local rc = Instance.new("UICorner") rc.CornerRadius = UDim.new(0, 5) rc.Parent = root
+    local rs = Instance.new("UIStroke") rs.Color = DP_LINE rs.Thickness = 1 rs.Parent = root
+
+    -- single accent hairline across the very top, nothing else coloured
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(1, 0, 0, 2)
+    bar.BackgroundColor3 = DP_ACCENT
+    bar.BorderSizePixel = 0
+    bar.ZIndex = 3
+    bar.Parent = root
+
+    local head = Instance.new("Frame")
+    head.Size = UDim2.new(1, 0, 0, 30)
+    head.Position = UDim2.fromOffset(0, 2)
+    head.BackgroundColor3 = DP_HEAD
+    head.BorderSizePixel = 0
+    head.Parent = root
+
+    local title = Instance.new("TextLabel")
+    title.BackgroundTransparency = 1
+    title.Size = UDim2.new(1, -74, 1, 0)
+    title.Position = UDim2.fromOffset(10, 0)
+    title.Font = DP_F_BOLD
+    title.TextSize = 13
+    title.TextColor3 = DP_TEXT
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.TextTruncate = Enum.TextTruncate.AtEnd
+    title.Text = "no zombie"
+    title.Parent = head
+
+    local meta = Instance.new("TextLabel")
+    meta.Name = "Meta"
+    meta.BackgroundTransparency = 1
+    meta.Size = UDim2.fromOffset(64, 30)
+    meta.Position = UDim2.new(1, -70, 0, 0)
+    meta.Font = DP_F_NUM
+    meta.TextSize = 11
+    meta.TextColor3 = DP_DIM
+    meta.TextXAlignment = Enum.TextXAlignment.Right
+    meta.Text = ""
+    meta.Parent = head
+
+    local div = Instance.new("Frame")
+    div.Size = UDim2.new(1, 0, 0, 1)
+    div.Position = UDim2.fromOffset(0, 32)
+    div.BackgroundColor3 = DP_LINE
+    div.BorderSizePixel = 0
+    div.Parent = root
+
+    local list = Instance.new("Frame")
+    list.Name = "List"
+    list.BackgroundTransparency = 1
+    list.Size = UDim2.new(1, 0, 1, -34)
+    list.Position = UDim2.fromOffset(0, 33)
+    list.Parent = root
+
+    AR2_DROPPANEL.gui, AR2_DROPPANEL.root = gui, root
+    AR2_DROPPANEL.title, AR2_DROPPANEL.meta, AR2_DROPPANEL.list = title, meta, list
+    AR2_DROPPANEL.rows = {}
+    return gui
+end
+
+local function dpRow(i)
+    local r = AR2_DROPPANEL.rows[i]
+    if r and r.frame.Parent then return r end
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1, 0, 0, 17)
+    f.Position = UDim2.fromOffset(0, (i - 1) * 17)
+    f.BackgroundTransparency = 1
+    f.BorderSizePixel = 0
+    f.Parent = AR2_DROPPANEL.list
+
+    local mark = Instance.new("Frame")
+    mark.Size = UDim2.fromOffset(2, 11)
+    mark.Position = UDim2.fromOffset(6, 3)
+    mark.BackgroundColor3 = DP_ACCENT
+    mark.BorderSizePixel = 0
+    mark.Visible = false
+    mark.Parent = f
+
+    local nm = Instance.new("TextLabel")
+    nm.BackgroundTransparency = 1
+    nm.Size = UDim2.new(1, -78, 1, 0)
+    nm.Position = UDim2.fromOffset(14, 0)
+    nm.Font = DP_F_BODY
+    nm.TextSize = 12
+    nm.TextColor3 = DP_TEXT
+    nm.TextXAlignment = Enum.TextXAlignment.Left
+    nm.TextTruncate = Enum.TextTruncate.AtEnd
+    nm.Parent = f
+
+    local ch = Instance.new("TextLabel")
+    ch.BackgroundTransparency = 1
+    ch.Size = UDim2.fromOffset(58, 17)
+    ch.Position = UDim2.new(1, -64, 0, 0)
+    ch.Font = DP_F_NUM
+    ch.TextSize = 11
+    ch.TextColor3 = DP_DIM
+    ch.TextXAlignment = Enum.TextXAlignment.Right
+    ch.Parent = f
+
+    r = { frame = f, mark = mark, name = nm, chance = ch }
+    AR2_DROPPANEL.rows[i] = r
+    return r
+end
+
+-- nearest zombie to the crosshair, falling back to nearest outright
+local function dpPickZombie()
+    local c = AR2_CFG.zombies
+    local range = tonumber(c.dropsDist) or 2000
+    local cam = AR2_Workspace.CurrentCamera
+    local best, bestScore
+    local ok = pcall(function()
+        for _, e in ipairs(AR2_api.zombies()) do
+            if e.distance and e.distance <= range and e.model then
+                local anchor = e.model:FindFirstChild("HumanoidRootPart") or e.model.PrimaryPart
+                if anchor and cam then
+                    local sp, on = cam:WorldToViewportPoint(anchor.Position)
+                    local score
+                    if on and sp.Z > 0 then
+                        local ctr = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+                        score = (Vector2.new(sp.X, sp.Y) - ctr).Magnitude
+                    else
+                        score = 10000 + e.distance   -- offscreen loses to anything onscreen
+                    end
+                    if not bestScore or score < bestScore then bestScore, best = score, e end
+                end
+            end
+        end
+    end)
+    if not ok then return nil end
+    return best
+end
+
+function AR2_updateDropPanel()
+    local c = AR2_CFG.zombies
+    if not (c.on and c.dropsPanel) then
+        if AR2_DROPPANEL.gui then AR2_DROPPANEL.gui.Enabled = false end
+        return
+    end
+    if not AR2_DROPPANEL.gui or not AR2_DROPPANEL.gui.Parent then dpBuild() end
+    AR2_DROPPANEL.gui.Enabled = true
+
+    local e = dpPickZombie()
+    if not e then
+        AR2_DROPPANEL.title.Text = "no zombie in range"
+        AR2_DROPPANEL.meta.Text = ""
+        for _, r in ipairs(AR2_DROPPANEL.rows) do r.frame.Visible = false end
+        AR2_DROPPANEL.root.Size = UDim2.fromOffset(236, 44)
+        return
+    end
+
+    local rare = (c.markEvent and (e.isEvent or e.isUnique))
+        or (e.rarity ~= nil and e.rarity <= (tonumber(c.rareBelow) or 0.3))
+    AR2_DROPPANEL.title.Text = tostring(e.label or e.name or "?")
+    AR2_DROPPANEL.title.TextColor3 = rare and DP_ACCENT or DP_TEXT
+    AR2_DROPPANEL.meta.Text = ("%dm%s"):format(math.floor(e.distance or 0),
+        e.isEvent and "  EVENT" or (e.isUnique and "  UNIQUE")
+        or (rare and "  SPECIAL") or "")
+    AR2_DROPPANEL.meta.TextColor3 = rare and DP_ACCENT or DP_DIM
+
+    -- the entry already carries its resolved config; only fall back to a
+    -- lookup if this one was built before the library loaded
+    local cfg = e.cfg or AR2_zombieConfig(e.name)
+    local list = cfg and AR2_zombieDropList(cfg)
+    local shown = 0
+    if list then
+        local rareAt = tonumber(c.rareDropBelow) or 0.15
+        for i = 1, math.min(#list, 10) do
+            local d = list[i]
+            local r = dpRow(i)
+            local isRare = d.chance ~= nil and d.chance <= rareAt
+            r.name.Text = d.name
+            r.name.TextColor3 = isRare and DP_ACCENT or DP_TEXT
+            r.mark.Visible = isRare
+            r.chance.Text = d.chance and ("%.1f%%"):format(d.chance * 100) or "-"
+            r.chance.TextColor3 = isRare and DP_ACCENT or DP_DIM
+            r.frame.Visible = true
+            shown = i
+        end
+    end
+    if shown == 0 then
+        local r = dpRow(1)
+        r.name.Text = "no drop data"
+        r.name.TextColor3 = DP_DIM
+        r.mark.Visible = false
+        r.chance.Text = ""
+        r.frame.Visible = true
+        shown = 1
+    end
+    for i = shown + 1, #AR2_DROPPANEL.rows do AR2_DROPPANEL.rows[i].frame.Visible = false end
+    AR2_DROPPANEL.root.Size = UDim2.fromOffset(236, 38 + shown * 17 + 4)
+end
+
+function AR2_dropPanelHide()
+    if AR2_DROPPANEL.gui then AR2_DROPPANEL.gui.Enabled = false end
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.15)
+        pcall(AR2_zPanelsUpdate)
+    end
+end)
+end
+
+
+-- ===== PER-ZOMBIE DROP PANELS (Drawing API) ================================
+-- Drawn with Drawing, not ScreenGui: these sit in the same layer as the rest
+-- of the ESP, so they cannot be captured, they do not fight the game's own
+-- UI for z-order, and they cost no Instances.
+--
+-- Everything that used to be crammed under the zombie's name -- drops, threat
+-- level, stun warning, event tag, distance -- lives in here instead.
+do
+    local BG     = Color3.fromRGB(13, 12, 13)
+    local LINE   = Color3.fromRGB(58, 34, 39)
+    local ACCENT = Color3.fromRGB(226, 29, 44)
+    local TEXT   = Color3.fromRGB(238, 235, 236)
+    local DIM    = Color3.fromRGB(146, 136, 139)
+    local WARN   = Color3.fromRGB(255, 176, 64)
+
+    local PAD, ROW_H, TITLE_H = 6, 13, 16
+    local T_SIZE, R_SIZE = 13, 12
+
+    AR2_ZDRAW = { panels = {}, built = 0 }
+
+    local function font()
+        local f = 2
+        pcall(function() f = (Drawing.Fonts and Drawing.Fonts.Plex) or 2 end)
+        return f
+    end
+
+    -- TextBounds is not universal, so fall back to an estimate rather than
+    -- letting a nil index kill the whole ESP frame.
+    local function widthOf(t, str, size)
+        local w
+        pcall(function() w = t.TextBounds and t.TextBounds.X end)
+        if type(w) == "number" and w > 0 then return w end
+        return #tostring(str) * size * 0.52
+    end
+
+    local function mkText(size, colour)
+        local t = Drawing.new("Text")
+        t.Size = size
+        t.Center = false
+        t.Outline = true
+        t.Visible = false
+        t.Color = colour
+        pcall(function() t.OutlineColor = Color3.fromRGB(0, 0, 0) end)
+        pcall(function() t.Font = font() end)
+        return t
+    end
+
+    local function mkPanel()
+        local bg = Drawing.new("Square")
+        bg.Filled, bg.Thickness, bg.Visible = true, 1, false
+        bg.Color, bg.Transparency = BG, 0.82
+
+        local br = Drawing.new("Square")
+        br.Filled, br.Thickness, br.Visible = false, 1, false
+        br.Color, br.Transparency = LINE, 1
+
+        local ac = Drawing.new("Square")
+        ac.Filled, ac.Thickness, ac.Visible = true, 1, false
+        ac.Color, ac.Transparency = ACCENT, 1
+
+        return { bg = bg, br = br, ac = ac,
+                 title = mkText(T_SIZE, TEXT), meta = mkText(R_SIZE, DIM),
+                 rows = {} }
+    end
+
+    local function row(pn, i)
+        local r = pn.rows[i]
+        if r then return r end
+        r = { name = mkText(R_SIZE, TEXT), val = mkText(R_SIZE, DIM) }
+        pn.rows[i] = r
+        return r
+    end
+
+    local function panel(i)
+        local pn = AR2_ZDRAW.panels[i]
+        if pn then return pn end
+        pn = mkPanel()
+        AR2_ZDRAW.panels[i] = pn
+        AR2_ZDRAW.built = i
+        return pn
+    end
+
+    local function hidePanel(pn)
+        pn.bg.Visible, pn.br.Visible, pn.ac.Visible = false, false, false
+        pn.title.Visible, pn.meta.Visible = false, false
+        for _, r in ipairs(pn.rows) do r.name.Visible, r.val.Visible = false, false end
+    end
+
+    local function hideFrom(n)
+        for i = n, AR2_ZDRAW.built do
+            local pn = AR2_ZDRAW.panels[i]
+            if pn then hidePanel(pn) end
+        end
+    end
+
+    function AR2_zPanelsHide() hideFrom(1) end
+
+    function AR2_zPanelsDestroy()
+        for _, pn in ipairs(AR2_ZDRAW.panels) do
+            pcall(function()
+                pn.bg:Remove() pn.br:Remove() pn.ac:Remove()
+                pn.title:Remove() pn.meta:Remove()
+                for _, r in ipairs(pn.rows) do r.name:Remove() r.val:Remove() end
+            end)
+        end
+        AR2_ZDRAW.panels, AR2_ZDRAW.built = {}, 0
+    end
+
+    -- everything the old under-name text used to say, as rows
+    local function buildRows(e, c)
+        local rows = {}
+        if e.agroState == "Attacking" or e.agroState == "Investigating" then
+            rows[#rows+1] = { k = e.agroState, v = "", col = WARN }
+        end
+        if c.canStun and e.canStun then
+            rows[#rows+1] = { k = "STUNS", v = "", col = WARN }
+        end
+        if c.threat and e.threat then
+            rows[#rows+1] = { k = "Threat", v = tostring(e.threat), col = DIM }
+        end
+        local cfg  = e.cfg or AR2_zombieConfig(e.name)
+        local list = cfg and AR2_zombieDropList(cfg)
+        if list then
+            local rareAt = tonumber(c.rareDropBelow) or 0.15
+            local maxRows = math.clamp(tonumber(c.panelRows) or 4, 1, 10)
+            for i = 1, math.min(#list, maxRows) do
+                local d = list[i]
+                local isRare = d.chance ~= nil and d.chance <= rareAt
+                rows[#rows+1] = {
+                    k = d.name,
+                    v = d.chance and ("%.0f%%"):format(d.chance * 100) or "-",
+                    col = isRare and ACCENT or TEXT,
+                    vcol = isRare and ACCENT or DIM,
+                }
+            end
+        end
+        return rows
+    end
+
+    function AR2_zPanelsUpdate()
+        local c = AR2_CFG.zombies
+        if not (c.on and c.dropsPanel) or not AR2_hasDrawing then
+            if AR2_ZDRAW.built > 0 then hideFrom(1) end
+            return
+        end
+        local cam = AR2_Workspace.CurrentCamera
+        if not cam then hideFrom(1) return end
+
+        local range  = tonumber(c.dropsDist) or 2000
+        local maxPan = math.clamp(tonumber(c.panelMax) or 6, 1, 14)
+
+        local pick = {}
+        local ok = pcall(function()
+            for _, e in ipairs(AR2_api.zombies()) do
+                if e.distance and e.distance <= range and e.model then
+                    pick[#pick + 1] = e
+                end
+            end
+        end)
+        if not ok then hideFrom(1) return end
+        table.sort(pick, function(a, b) return a.distance < b.distance end)
+
+        local used = 0
+        for _, e in ipairs(pick) do
+            if used >= maxPan then break end
+            local anchor = e.head or e.root
+            if anchor then
+                local sp, on = cam:WorldToViewportPoint(anchor.Position)
+                if on and sp.Z > 0 then
+                    local rows = buildRows(e, c)
+                    if #rows > 0 then
+                        used = used + 1
+                        local pn = panel(used)
+                        local isEvt = e.isEvent or e.isUnique
+                        local rare  = isEvt
+                            or (e.rarity ~= nil and e.rarity <= (tonumber(c.rareBelow) or 0.3))
+
+                        local title = tostring(e.label or e.name or "?")
+                        local meta  = e.isEvent and "EVENT"
+                            or (e.isUnique and "UNIQUE")
+                            or (("%dm"):format(math.floor(e.distance)))
+
+                        pn.title.Text = title
+                        pn.title.Color = rare and ACCENT or TEXT
+                        pn.meta.Text  = meta
+                        pn.meta.Color = rare and ACCENT or DIM
+
+                        -- width from the widest line, so the box always fits
+                        local w = widthOf(pn.title, title, T_SIZE)
+                                  + widthOf(pn.meta, meta, R_SIZE) + 14
+                        for i, rw in ipairs(rows) do
+                            local r = row(pn, i)
+                            r.name.Text = rw.k
+                            r.val.Text  = rw.v
+                            local lw = widthOf(r.name, rw.k, R_SIZE)
+                                       + widthOf(r.val, rw.v, R_SIZE) + 16
+                            if lw > w then w = lw end
+                        end
+                        w = math.clamp(w + PAD * 2, 96, 260)
+                        local h = TITLE_H + #rows * ROW_H + PAD * 2
+
+                        local x = sp.X + 24
+                        if x + w > cam.ViewportSize.X - 4 then x = sp.X - w - 24 end
+                        x = math.max(4, x)
+                        local y = math.clamp(sp.Y - h / 2, 4, cam.ViewportSize.Y - h - 4)
+                        x, y = math.floor(x), math.floor(y)
+
+                        pn.bg.Size = Vector2.new(w, h)
+                        pn.bg.Position = Vector2.new(x, y)
+                        pn.bg.Visible = true
+                        pn.br.Size = Vector2.new(w, h)
+                        pn.br.Position = Vector2.new(x, y)
+                        pn.br.Visible = true
+                        pn.ac.Size = Vector2.new(2, h)
+                        pn.ac.Position = Vector2.new(x, y)
+                        pn.ac.Visible = true
+
+                        pn.title.Position = Vector2.new(x + PAD + 3, y + PAD - 2)
+                        pn.title.Visible = true
+                        pn.meta.Position = Vector2.new(
+                            x + w - PAD - widthOf(pn.meta, meta, R_SIZE), y + PAD - 1)
+                        pn.meta.Visible = true
+
+                        for i, rw in ipairs(rows) do
+                            local r = row(pn, i)
+                            local ry = y + PAD + TITLE_H + (i - 1) * ROW_H - 2
+                            r.name.Color = rw.col
+                            r.name.Position = Vector2.new(x + PAD + 3, ry)
+                            r.name.Visible = true
+                            if rw.v ~= "" then
+                                r.val.Color = rw.vcol or DIM
+                                r.val.Position = Vector2.new(
+                                    x + w - PAD - widthOf(r.val, rw.v, R_SIZE), ry)
+                                r.val.Visible = true
+                            else
+                                r.val.Visible = false
+                            end
+                        end
+                        for i = #rows + 1, #pn.rows do
+                            pn.rows[i].name.Visible = false
+                            pn.rows[i].val.Visible  = false
+                        end
+                    end
+                end
+            end
+        end
+        hideFrom(used + 1)
+    end
+end
+
 function AR2_updateMinimap()
     if not AR2_minimapEnabled then
         if AR2_minimapGui then AR2_minimapGui.Enabled = false end
@@ -3846,16 +5003,44 @@ function AR2_updateMinimap()
         local pRoot = pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
         if pRoot then
             i = i + 1
+            -- Avatar headshots instead of flat dots. rbxthumb:// resolves
+            -- client-side with no GetUserThumbnailAsync call, so there is no
+            -- yield and no thumbnail rate limit to trip.
+            local wantAvatars = AR2_CFG.minimap.avatars ~= false
+            local wantClass = wantAvatars and "ImageLabel" or "Frame"
             local dot = AR2_minimapDots[i]
+            if dot and dot.ClassName ~= wantClass then
+                pcall(function() dot:Destroy() end)
+                dot = nil
+            end
             if not dot then
-                dot = Instance.new("Frame")
-                dot.AnchorPoint = Vector2.new(0.5,0.5)
-                dot.Size = UDim2.fromOffset(5,5)
-                dot.BackgroundColor3 = Color3.fromRGB(255,90,90)
+                dot = Instance.new(wantClass)
+                dot.AnchorPoint = Vector2.new(0.5, 0.5)
                 dot.BorderSizePixel = 0
                 dot.ZIndex = 4
                 dot.Parent = AR2_minimapImg
+                if wantAvatars then
+                    dot.BackgroundColor3 = Color3.fromRGB(14, 13, 14)
+                    dot.BackgroundTransparency = 0
+                    local c = Instance.new("UICorner")
+                    c.CornerRadius = UDim.new(1, 0)
+                    c.Parent = dot
+                    local st = Instance.new("UIStroke")
+                    st.Thickness = 1
+                    st.Color = AR2_CFG.minimap.borderColor or Color3.fromRGB(230, 40, 50)
+                    st.Parent = dot
+                else
+                    dot.BackgroundColor3 = Color3.fromRGB(255, 90, 90)
+                end
                 AR2_minimapDots[i] = dot
+            end
+            if wantAvatars then
+                local px = math.clamp(tonumber(AR2_CFG.minimap.avatarSize) or 18, 10, 40)
+                dot.Size = UDim2.fromOffset(px, px)
+                local want = ("rbxthumb://type=AvatarHeadShot&id=%d&w=48&h=48"):format(pl.UserId)
+                if dot.Image ~= want then dot.Image = want end
+            else
+                dot.Size = UDim2.fromOffset(5, 5)
             end
             local u, v = AR2_worldToMap(pRoot.Position)
             dot.Position = UDim2.fromScale(u, v)
@@ -3863,12 +5048,74 @@ function AR2_updateMinimap()
         end
     end
     for j = i+1, #AR2_minimapDots do AR2_minimapDots[j].Visible = false end
+
+    -- rare / special zombie blips. Deliberately a different SHAPE as well as
+    -- a different colour: on a 200px map a red square beside a round avatar
+    -- reads instantly, two colours of dot do not.
+    AR2_minimapZDots = AR2_minimapZDots or {}
+    local z = 0
+    if AR2_CFG.minimap.zombies then
+        local mc = AR2_CFG.minimap
+        local rareBelow = tonumber(AR2_CFG.zombies.rareBelow) or 0.3
+        local eventsOnly = AR2_CFG.minimap.eventsOnly
+        local ok = pcall(function()
+            for _, e in ipairs(AR2_api.zombies()) do
+                if z >= 40 then break end
+                if e.distance and e.distance <= (tonumber(mc.zombieRange) or 2000) then
+                    local isEvt  = e.isEvent or e.isUnique
+                    local isRare = isEvt or (e.rarity ~= nil and e.rarity <= rareBelow)
+                    -- events get their own filter: on a map this size the
+                    -- rare-weight zombies are still common, the event ones
+                    -- are the handful you actually want to find
+                    local show
+                    if eventsOnly then show = isEvt
+                    elseif mc.zombiesRareOnly then show = isRare
+                    else show = true end
+                    if show then
+                        local anchor = e.model and (e.model:FindFirstChild("HumanoidRootPart")
+                                       or e.model.PrimaryPart)
+                        if anchor then
+                            z = z + 1
+                            local d = AR2_minimapZDots[z]
+                            if not d then
+                                d = Instance.new("Frame")
+                                d.AnchorPoint = Vector2.new(0.5, 0.5)
+                                d.BorderSizePixel = 0
+                                d.ZIndex = 5
+                                d.Parent = AR2_minimapImg
+                                AR2_minimapZDots[z] = d
+                            end
+                            local sz = isEvt and 9 or (isRare and 7 or 4)
+                            d.Size = UDim2.fromOffset(sz, sz)
+                            d.BackgroundColor3 = isEvt
+                                and Color3.fromRGB(255, 210, 60)   -- events stand out
+                                or (isRare and Color3.fromRGB(255, 60, 70)
+                                           or Color3.fromRGB(150, 150, 155))
+                            local u2, v2 = AR2_worldToMap(anchor.Position)
+                            d.Position = UDim2.fromScale(u2, v2)
+                            d.Visible = true
+                        end
+                    end
+                end
+            end
+        end)
+        if not ok then z = 0 end
+    end
+    for j = z + 1, #AR2_minimapZDots do AR2_minimapZDots[j].Visible = false end
 end
 
 function AR2_minimapStart()
     if AR2_minimapConn then return end
+    -- Unthrottled RenderStepped rebuilt every avatar icon and zombie blip
+    -- every frame. The map is a few hundred pixels across; 20Hz is already
+    -- past what reads as smooth on it.
+    local nextAt = 0
     AR2_minimapConn = AR2_RunService.RenderStepped:Connect(function()
         if not AR2_minimapEnabled then return end
+        local now = os.clock()
+        local hz  = math.clamp(tonumber(AR2_CFG.minimap.hz) or 20, 2, 60)
+        if now < nextAt then return end
+        nextAt = now + (1 / hz)
         AR2_updateMinimap()
     end)
 end
@@ -3880,6 +5127,24 @@ end
 function AR2_minimapUpdate()
     if AR2_CFG.minimap.on and not AR2_minimapConn then AR2_minimapStart()
     elseif not AR2_CFG.minimap.on and AR2_minimapConn then AR2_minimapStop() end
+end
+
+-- Spectate borrows the screen, so the minimap gets out of the way and comes
+-- back exactly as it was. The config value is untouched -- this only hides
+-- the gui -- so toggling spectate can never lose the user's setting.
+AR2_minimapHiddenBySpec = false
+function AR2_minimapSuppress(on)
+    if on then
+        if AR2_minimapGui and AR2_minimapGui.Enabled then
+            AR2_minimapHiddenBySpec = true
+            pcall(function() AR2_minimapGui.Enabled = false end)
+        end
+    elseif AR2_minimapHiddenBySpec then
+        AR2_minimapHiddenBySpec = false
+        if AR2_minimapGui and AR2_CFG.minimap.on then
+            pcall(function() AR2_minimapGui.Enabled = true end)
+        end
+    end
 end
 
 
@@ -5536,11 +6801,18 @@ function AR2_findBestOrigin(origin, direction, targetPos, targetChar)
 
 
         local du = direction.Unit
+        -- math.floor, not `//`. Floor division is a NEWER Luau operator and
+        -- these four lines were the only use of it in the whole hub -- which
+        -- is why this file, and only this file, failed to compile on some
+        -- executors and refused to parse in the protection toolchain. Older
+        -- Luau builds and Lua 5.1-era parsers read the first `/` as divide and
+        -- then hit a second `/` where an expression should be. Identical
+        -- result, universally supported.
         key = ("%d_%d_%d|%d_%d_%d|%d_%d_%d|%d|%s"):format(
-            origin.X//1, origin.Y//1, origin.Z//1,
-            targetPos.X//1, targetPos.Y//1, targetPos.Z//1,
-            du.X*20//1, du.Y*20//1, du.Z*20//1,
-            maxRadius*10//1,
+            math.floor(origin.X), math.floor(origin.Y), math.floor(origin.Z),
+            math.floor(targetPos.X), math.floor(targetPos.Y), math.floor(targetPos.Z),
+            math.floor(du.X*20), math.floor(du.Y*20), math.floor(du.Z*20),
+            math.floor(maxRadius*10),
             tostring(targetChar))
         if memo.key == key and (os.clock() - memo.at) < ttl then
             AR2_lastOriginRays = 0
@@ -6068,12 +7340,44 @@ function AR2_getEquippedInner()
     return rawget(item, "__item") or item
 end
 
+AR2_fireModeSkipped = {}
+function AR2_fireModeHasAuto(modes)
+    if type(modes) ~= "table" then return false end
+    for _, m in pairs(modes) do
+        if type(m) == "string" and string.find(string.lower(m), "auto", 1, true)
+           and not string.find(string.lower(m), "semi", 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
 function AR2_applyToInner(inner)
     if not inner then return end
     local id = tostring(inner.Id or inner.ItemName or inner.Name or "unknown")
     if not AR2_originalFireModesCache[id] then
         AR2_originalFireModesCache[id] = inner.FireModes
     end
+
+    -- This only rewrites the CLIENT's idea of the gun's fire modes. The server
+    -- still knows a semi-auto is semi-auto, so firing it on auto is a rate
+    -- violation against the weapon's real profile -- which is the kick.
+    -- Guns that are natively automatic have nothing to give away, so they are
+    -- left unlocked; semi-only guns are skipped unless you opt out.
+    if AR2_CFG.weapon.fireModesSafe
+       and not AR2_fireModeHasAuto(AR2_originalFireModesCache[id]) then
+        if not AR2_fireModeSkipped[id] then
+            AR2_fireModeSkipped[id] = true
+            AR2_warnOnce("firemode_" .. id,
+                "[DROIDWARE] " .. id .. " is semi-only -- fire mode unlock SKIPPED "
+                .. "for it. The server knows its real profile and auto fire from "
+                .. "a semi gun is what kicks you. Turn off 'Only Unlock Guns That "
+                .. "Are Already Auto' to force it anyway.", 8)
+        end
+        inner.FireModes = AR2_originalFireModesCache[id]
+        return inner
+    end
+
     inner.FireModes = AR2_allFireModes_table
     return inner
 end
@@ -7107,6 +8411,7 @@ function AR2_installDamageListener()
     end
 
     rawset(reg, "Bullet Damage", function(key, pos, dmg, colour)
+        AR2_shotsReg = (AR2_shotsReg or 0) + 1
         if not AR2_dmgSigLogged then
             AR2_dmgSigLogged = true
             pcall(function()
@@ -7142,9 +8447,33 @@ function AR2_installNetHook()
 
     local ok = pcall(function()
         AR2_netSendOrig = hookfunction(net.Send, newcclosure(function(self, msg, ...)
+            -- SERVER-SIDE INVIS
+            -- The wire log showed the real mechanism: the client sends
+            --     Character Toggle Binoculars ("Binoculars")   -- raise
+            --     Character Toggle Binoculars ("")             -- lower
+            -- and the server relays that case name to everyone else, whose
+            -- clients then call AddInvisibleCase on YOUR character. That is
+            -- why nothing changed locally: the hide runs on their machine,
+            -- not yours.
+            --
+            -- So to stay hidden we must stop the game telling the server we
+            -- lowered them. Swallow the clear, let everything else through.
+            if AR2_SRVINVIS and AR2_SRVINVIS.on and msg == "Character Toggle Binoculars" then
+                local a = ...
+                if a == nil or a == "" then
+                    AR2_SRVINVIS.blocked = (AR2_SRVINVIS.blocked or 0) + 1
+                    return
+                end
+            end
+
             local res = table.pack(AR2_netSendOrig(self, msg, ...))
 
             if (AR2_CFG.misc.cosLearn or AR2_cosEnabled) and type(msg) == "string" then
+                -- `lm` used to be declared BELOW this pcall, so in here it
+                -- resolved to a nil global, string.find threw, and the pcall
+                -- ate it -- which silently killed the shot counters AND the
+                -- cosmetic message learning. Declared first now.
+                local lm = string.lower(msg)
                 pcall(function()
                     if string.find(lm, "bullet", 1, true)
                     or string.find(lm, "shot", 1, true) then
@@ -7165,7 +8494,6 @@ function AR2_installNetHook()
                     AR2_cosSeenMsgs = AR2_cosSeenMsgs or {}
                     AR2_cosSeenMsgs[msg] = (AR2_cosSeenMsgs[msg] or 0) + 1
                 end)
-                local lm = string.lower(msg)
                 if string.find(lm, "loadout", 1, true)
                 or string.find(lm, "cosmetic", 1, true)
                 or string.find(lm, "wardrobe", 1, true)
@@ -7822,7 +9150,7 @@ function AR2_setWallbangAll(on)
     local w = AR2_CFG.weapon
     w.wallbang = on and true or false
 
-    local budget = math.clamp(tonumber(w.wallbangBudget) or 12, 1, 12)
+    local budget = math.clamp(tonumber(w.wallbangBudget) or 5, 1, 12)
     w.penBudget      = budget
     w.wallbangPierce = math.clamp(math.floor(budget), 1, 12)
     w.penUnlimited   = false
@@ -7866,9 +9194,9 @@ function AR2_setWallbangFilter(on)
                 local origin, dir = ray.Origin, ray.Direction
                 local unlimited = (AR2_CFG.weapon.penUnlimited == true) or rageWindow
                 local budget    = unlimited and math.huge
-                    or math.clamp(tonumber(AR2_CFG.weapon.penBudget) or 12, 0, 12)
+                    or math.clamp(tonumber(AR2_CFG.weapon.penBudget) or 5, 0, 12)
                 local spent  = 0
-                local passes = unlimited and 64 or math.min(AR2_CFG.weapon.wallbangPierce or 12, 12)
+                local passes = unlimited and 64 or math.min(AR2_CFG.weapon.wallbangPierce or 5, 12)
                 for _ = 1, passes do
                     local hit = AR2_Workspace:Raycast(origin, dir, params)
                     if not hit then break end
@@ -8413,7 +9741,7 @@ function AR2_installResolverHook()
             if not (pierceAll or AR2_CFG.weapon.wallbang) then return false end
 
             local unlimited = pierceAll or (AR2_CFG.weapon.penUnlimited == true)
-            local budget    = math.min(tonumber(AR2_CFG.weapon.penBudget) or 12, 12)
+            local budget    = math.min(tonumber(AR2_CFG.weapon.penBudget) or 5, 12)
             if not unlimited and budget <= 0 then return false end
 
             if pierceAll then AR2_ragePierceHits = (AR2_ragePierceHits or 0) + 1 end
@@ -8924,6 +10252,225 @@ local function AR2_getFireInterval(wi, wd)
     return math.max(0.01, interval)
 end
 
+-- Sent vs registered. If the server silently drops shots that arrive too
+-- close together, sent climbs and registered does not -- which is the signal
+-- that rpmBoost has gone past what this server accepts. Tune by watching the
+-- gap, not by guessing a number.
+AR2_shotsSent, AR2_shotsReg = 0, 0
+AR2_rpmEffective = 0
+
+-- BURST + REPAY
+-- A sustained boost raises the AVERAGE rate forever, and any server keeping a
+-- rolling count of shots per second sees that immediately -- which matches
+-- what you found: every boost value kicks eventually, large or small.
+--
+-- So: fire a short burst faster than legal, then deliberately wait LONGER
+-- than legal until the time borrowed has been paid back. The instantaneous
+-- rate spikes, but the average over any window longer than one burst stays at
+-- or under the weapon's real rate. That is the only version of this with a
+-- principled reason to survive a rate check.
+--
+-- Honest caveat: if the server checks the GAP BETWEEN CONSECUTIVE SHOTS
+-- rather than an average, no burst scheme helps and this will still kick.
+-- That is measurable -- a burst of 2 kicking as fast as a burst of 6 means
+-- it is per-gap, and you should leave this off entirely.
+AR2_burstCount, AR2_burstDebt, AR2_burstLastShot = 0, 0, 0
+
+function AR2_rageNoteShot()
+    AR2_burstLastShot = os.clock()
+    AR2_burstCount = AR2_burstCount + 1
+end
+
+function AR2_rageBurstStatus()
+    return ("burst %d/%d, debt %.0f ms"):format(
+        AR2_burstCount,
+        math.max(1, math.floor(tonumber(AR2_CFG.rageBot.burstShots) or 3)),
+        (AR2_burstDebt or 0) * 1000)
+end
+
+
+-- ===== INVENTORY-MODE AMMO TRACKING ========================================
+-- Inventory fire bypasses the game's own trigger, so nothing decrements a
+-- magazine or stops us at empty: the bot keeps sending shots for a gun the
+-- server knows is dry. Count them ourselves and stop at zero.
+--
+-- The ammo field name is not worth guessing at, so read every plausible one
+-- and report which actually answered; Dump Ammo Fields shows the gun's real
+-- shape when none of them do.
+AR2_invShots = 0
+AR2_invAmmoSrc = "unknown"
+AR2_invNeedsReload = false
+
+AR2_AMMO_CUR = { "Ammo", "CurrentAmmo", "LoadedAmmo", "MagazineAmmo",
+                 "AmmoCount", "Rounds", "LoadedRounds", "Magazine", "Clip" }
+AR2_AMMO_MAX = { "MagSize", "MagazineSize", "InternalMagSize", "MaxAmmo",
+                 "Capacity", "ClipSize" }
+
+function AR2_ammoReadNum(tbl, names)
+    if type(tbl) ~= "table" then return nil, nil end
+    for _, k in ipairs(names) do
+        local v
+        pcall(function() v = tbl[k] end)
+        if type(v) == "number" and v >= 0 then return v, k end
+    end
+    return nil, nil
+end
+
+function AR2_gunAmmoInfo()
+    local sfp
+    pcall(function() sfp = AR2_seedForEquipped() end)
+    local wi = sfp and sfp.wi
+    if type(wi) ~= "table" then
+        AR2_invAmmoSrc = "no weapon instance"
+        return nil, nil
+    end
+    local inner = rawget(wi, "__item") or wi
+
+    local cur, ck = AR2_ammoReadNum(inner, AR2_AMMO_CUR)
+    local max, mk = AR2_ammoReadNum(inner, AR2_AMMO_MAX)
+    if not max then
+        local fc
+        pcall(function() fc = inner.FireConfig end)
+        local m2, mk2 = AR2_ammoReadNum(fc, AR2_AMMO_MAX)
+        if m2 then max, mk = m2, "FireConfig." .. tostring(mk2) end
+    end
+    if cur then
+        AR2_invAmmoSrc = tostring(ck) .. (max and ("/" .. tostring(mk)) or "")
+    else
+        AR2_invAmmoSrc = max and ("only max via " .. tostring(mk)) or "not found"
+    end
+    return cur, max
+end
+
+function AR2_invAmmoLeft()
+    local cur, max = AR2_gunAmmoInfo()
+    local base = cur or max
+    if not base then return nil, nil end
+    return math.max(base - (AR2_invShots or 0), 0), base
+end
+
+function AR2_invAmmoReset()
+    AR2_invShots = 0
+    AR2_invNeedsReload = false
+end
+
+function AR2_invTryReload()
+    local done = false
+    pcall(function()
+        local pc = require(AR2_ReplicatedFirst:WaitForChild("Framework", 10))
+                    .Classes.Players.get()
+        local item = pc and pc.Character and pc.Character.EquippedItem
+        local inner = item and (rawget(item, "__item") or item)
+        if inner and type(inner.OnReload) == "function" then
+            inner:OnReload()
+            done = true
+        end
+    end)
+    if done then AR2_invAmmoReset() end
+    return done
+end
+
+function AR2_invAmmoStatus()
+    local left, base = AR2_invAmmoLeft()
+    return ("ammo %s/%s (field: %s)%s"):format(
+        left and tostring(left) or "?", base and tostring(base) or "?",
+        tostring(AR2_invAmmoSrc),
+        AR2_invNeedsReload and "  NEEDS RELOAD" or "")
+end
+
+function AR2_ammoDump()
+    local sfp
+    pcall(function() sfp = AR2_seedForEquipped() end)
+    local wi = sfp and sfp.wi
+    local L = { "== AMMO FIELDS ==" }
+    if type(wi) ~= "table" then
+        L[#L+1] = "  no weapon instance -- hold or seed a gun first"
+    else
+        local inner = rawget(wi, "__item") or wi
+        local n = 0
+        for k, v in pairs(inner) do
+            n = n + 1
+            if n <= 50 and type(v) ~= "function" then
+                L[#L+1] = ("  %-26s %-8s %s"):format(
+                    tostring(k):sub(1,26), type(v),
+                    type(v) == "table" and "{...}" or tostring(v))
+            end
+        end
+        local fc
+        pcall(function() fc = inner.FireConfig end)
+        if type(fc) == "table" then
+            L[#L+1] = "  -- FireConfig --"
+            for k, v in pairs(fc) do
+                if type(v) ~= "function" then
+                    L[#L+1] = ("    %-24s %-8s %s"):format(
+                        tostring(k):sub(1,24), type(v),
+                        type(v) == "table" and "{...}" or tostring(v))
+                end
+            end
+        end
+        L[#L+1] = ""
+        L[#L+1] = "  resolved: " .. AR2_invAmmoStatus()
+    end
+    local t = table.concat(L, "\n")
+    print(t)
+    pcall(function() (setclipboard or toclipboard)(t) end)
+    return t
+end
+
+AR2_rageRateKnown = false
+function AR2_rageInterval()
+    -- The old fallback was 0.1s -- 600 RPM -- used whenever the weapon could
+    -- not be identified. On a slow gun that is far over its real rate, and is
+    -- the "sometimes it fires too fast" case. Fall back SLOW, not fast.
+    local iv = tonumber(AR2_CFG.rageBot.safeInterval) or 0.2
+    AR2_rageRateKnown = false
+    pcall(function()
+        local sfp = AR2_seedForEquipped()
+        if sfp then
+            local real = AR2_getFireInterval(sfp.wi, sfp.wd)
+            if type(real) == "number" and real > 0 then
+                iv = real
+                AR2_rageRateKnown = true
+            end
+        end
+    end)
+    local floor = math.clamp(tonumber(AR2_CFG.rageBot.minInterval) or 0.08, 0.05, 1)
+    if iv < floor then iv = floor end
+    local legit = iv
+
+    -- capped at 1.2: anything higher was a reliable kick
+    local boost = math.clamp(tonumber(AR2_CFG.rageBot.rpmBoost) or 1, 1, 1.2)
+    if boost <= 1.001 then
+        AR2_burstCount, AR2_burstDebt = 0, 0
+        return math.max(legit, 60 / 1100)
+    end
+
+    if not AR2_CFG.rageBot.burstMode then
+        -- old behaviour, kept for comparison: permanently faster, and the
+        -- thing that kicks you
+        return math.max(legit / boost, 60 / 1100)
+    end
+
+    local shots = math.max(1, math.floor(tonumber(AR2_CFG.rageBot.burstShots) or 3))
+
+    -- idle long enough and the debt is forgiven: you were not shooting, so
+    -- there is nothing to pay back
+    if (os.clock() - (AR2_burstLastShot or 0)) > (legit * (shots + 2)) then
+        AR2_burstCount, AR2_burstDebt = 0, 0
+    end
+
+    if AR2_burstCount < shots then
+        local fast = math.max(legit / boost, 60 / 1100)
+        AR2_burstDebt = (AR2_burstDebt or 0) + (legit - fast)
+        return fast
+    end
+
+    -- burst spent: hand back everything borrowed in one wait, then reset
+    local payback = legit + (AR2_burstDebt or 0)
+    AR2_burstCount, AR2_burstDebt = 0, 0
+    return payback
+end
+
 local function AR2_releaseVIM()
     if AR2_rbHeld then
         pcall(function() AR2_VIM:SendMouseButtonEvent(0,0,0,false,game,1) end)
@@ -8984,32 +10531,945 @@ function AR2_penStudsTo(origin, targetPos, ignoreList)
     return total, walls, false
 end
 
-function AR2_rageBotVisCheck(model, part, origin)
-    if not part then return false end
-    local ignore = { AR2_LocalPlayer.Character, model }
+AR2_lastPathWhy = "-"
 
-    local total, walls, reached = AR2_penStudsTo(origin, part.Position, ignore)
+-- WALLBANG, REWRITTEN.
+--
+-- The old version called AR2_penStudsTo, which carefully walks up to ten
+-- surfaces and returns how many studs of material are in the way -- and then
+-- THREW THAT NUMBER AWAY. It decided purely on "is wallbang on", so the bot
+-- would happily commit a full magazine into forty studs of concrete.
+--
+-- It also tested exactly one point: the centre of the aim part. When the
+-- hitbox expander pushes that part into geometry, its centre ends up inside a
+-- wall and reads as unreachable while the actual body is wide open. That is
+-- the "wallbang stops working when HBE clips a wall" behaviour.
+--
+-- Now: sample several points on the target, keep the cheapest reachable one,
+-- and compare the real cost against a real budget before saying yes.
 
-    if not reached and (tonumber(AR2_CFG.magicAim.originRadius) or 0) > 0 then
+-- ===== INVISIBILITY ========================================================
+-- This is the binocular invisible case, and it is the game's own API -- the
+-- same call AR2 makes when you raise binoculars. Our earlier content search
+-- across 2801 modules found exactly TWO AddInvisibleCase call sites,
+-- Binoculars and Hardcore, plus a 1250-stud WorldInvis cull. Of those,
+-- Binoculars is the ONLY hide the server is aware of, because the client
+-- sends "Get Binocular State" to it on a loop. Server awareness is precisely
+-- what makes you invisible to other people instead of only to yourself.
+--
+-- Holding the case gives three things: no weapon and no hands on your own
+-- screen, shove dealing knife damage, and your character hidden for others.
+--
+-- READ THIS BEFORE ENABLING IT
+-- "Get Binocular State" is also one of the anti-cheat reporters, and it sends
+-- your body part sizes on a Heartbeat. Holding a binocular state you did not
+-- legitimately enter is exactly the kind of mismatch that gets noticed. This
+-- can kick you. It is off by default and it stays off unless you ask for it.
+AR2_INVIS = { api = false, held = false, caseName = nil, why = "not resolved", lastErr = nil }
+
+do
+local addFn, removeFn, caseHost
+
+local function myRecord()
+    local e
+    pcall(function()
+        e = require(AR2_ReplicatedFirst:WaitForChild("Framework", 10)).Classes.Players.get()
+    end)
+    return e
+end
+
+function AR2_invisFindAPI()
+    addFn, removeFn, caseHost = nil, nil, nil
+    local r = myRecord()
+
+    -- 1. straight off the character record
+    if type(r) == "table" then
+        if type(r.AddInvisibleCase) == "function" then addFn, caseHost = r.AddInvisibleCase, r end
+        if type(r.RemoveInvisibleCase) == "function" then removeFn = r.RemoveInvisibleCase end
+    end
+
+    -- 2. the animator, which is where the decompile puts the hide system
+    pcall(function()
+        local a = r and (r.Animator or r.Animators)
+        if type(a) == "table" then
+            if type(a.AddInvisibleCase) == "function" then addFn, caseHost = a.AddInvisibleCase, a end
+            if type(a.RemoveInvisibleCase) == "function" then removeFn = a.RemoveInvisibleCase end
+        end
+    end)
+
+    -- 3. last resort: sweep gc for the functions by name
+    if not addFn and type(getgc) == "function" then
         pcall(function()
-            local dir = (part.Position - origin).Unit
-
-
-            local nudge = math.clamp((tonumber(AR2_CFG.magicAim.originRadius) or 2) * 0.5, 0, 5)
-            local shifted, shiftedClear = AR2_findBestOrigin(origin + dir * nudge, dir, part.Position, model)
-            if shiftedClear and shifted then
-                local t2, w2, r2 = AR2_penStudsTo(shifted, part.Position, ignore)
-                if r2 and t2 < total then total, walls, reached = t2, w2, true end
+            for _, f in ipairs(getgc(false)) do
+                if type(f) == "function" then
+                    local ok, info = pcall(debug.getinfo, f)
+                    if ok and info and info.name then
+                        if info.name == "AddInvisibleCase" then addFn = f end
+                        if info.name == "RemoveInvisibleCase" then removeFn = f end
+                    end
+                end
             end
         end)
     end
 
-    AR2_lastPathStuds, AR2_lastPathWalls = total, walls
-    if not reached then
-        return (AR2_CFG.weapon.penUnlimited and AR2_CFG.weapon.wallbang) and true or false
+    AR2_INVIS.api = (addFn ~= nil)
+    if AR2_INVIS.api and not caseHost then pcall(AR2_invisFindHosts) end
+    AR2_INVIS.why = AR2_INVIS.api
+        and ("resolved (" .. tostring(AR2_invisHostWhy) .. ")")
+        or  "AddInvisibleCase not found on record, animator or gc"
+    return AR2_INVIS.api
+end
+
+-- Read the cases currently on you. The spelling of the binocular case is a
+-- guess until this prints the real one, which is why it is a button and not
+-- a hardcoded string.
+-- The case table only holds a case while that hide is ACTIVE. Carrying
+-- binoculars in your inventory adds nothing -- the case appears when you
+-- actually raise and look through them, and disappears when you lower them.
+-- So an empty list is the normal state, not a failure, and guessing field
+-- names off a quiet table was never going to work.
+--
+-- Two better sources than guessing: the table AddInvisibleCase closes over
+-- (it has to reference whatever it mutates), and the string constants baked
+-- into that function.
+local CASE_KEYS = { "InvisibleCases", "_invisibleCases", "InvisibleCase",
+                    "Cases", "invisibleCases", "_cases", "Invisible" }
+
+local function caseTables()
+    local out, seen = {}, {}
+    local function add(t)
+        if type(t) == "table" and not seen[t] then seen[t] = true out[#out+1] = t end
     end
-    if total <= 0.01 then return true end
-    return (AR2_CFG.weapon.wallbang or AR2_CFG.weapon.wallbangFilter) and true or false
+    local r = myRecord()
+    local pool = { r, type(r) == "table" and r.Animator or nil,
+                      type(r) == "table" and r.Animators or nil, caseHost }
+    for _, h in ipairs(AR2_invisHosts or {}) do pool[#pool+1] = h.tbl end
+    for _, h in ipairs(pool) do
+        if type(h) == "table" then
+            for _, key in ipairs(CASE_KEYS) do
+                add(rawget(h, key))
+                local ok, v = pcall(function() return h[key] end)  -- through __index
+                if ok then add(v) end
+            end
+        end
+    end
+    -- whatever AddInvisibleCase writes into is almost certainly an upvalue
+    if type(addFn) == "function" and type(debug) == "table"
+       and type(debug.getupvalue) == "function" then
+        for i = 1, 16 do
+            local ok, uv = pcall(debug.getupvalue, addFn, i)
+            if not ok then break end
+            if type(uv) == "table" then
+                add(uv)
+                for _, key in ipairs(CASE_KEYS) do add(rawget(uv, key)) end
+            end
+        end
+    end
+    return out
+end
+
+
+-- The gc sweep finds the FUNCTION but never its owner, so caseHost stayed
+-- nil and applyCase fell back to fn(name) -- calling a method with the case
+-- name as `self`. That pcalls clean and does absolutely nothing, which is
+-- exactly the symptom: "API: FOUND", no error, no invisibility.
+--
+-- AddInvisibleCase's constants contain "InvisibleCases", so it is indexing
+-- self.InvisibleCases. Find the table that owns the method, by identity.
+AR2_invisHostWhy = "not searched"
+AR2_invisHosts   = {}
+
+-- The capture handed us the real object: 48 keys including InvisibleCases,
+-- RemoveInvisibleCase, BodyParts, LodVisibleCutOff -- and the error stack
+-- named the module: Client.Classes.Animators, whose Character abstract owns
+-- AddInvisibleCase. So resolve it directly instead of sweeping gc.
+function AR2_invisAnimatorHost()
+    local host
+    pcall(function()
+        local fw = require(AR2_ReplicatedFirst:WaitForChild("Framework", 10))
+        local rec = fw.Classes and fw.Classes.Players and fw.Classes.Players.get()
+        if type(rec) == "table" then
+            local a = rec.Animator or rec.Animators
+            if type(a) == "table" and rawget(a, "InvisibleCases") ~= nil then
+                host = a
+            end
+        end
+    end)
+    return host
+end
+
+function AR2_invisFindHosts()
+    local hosts, seen = {}, {}
+    local function consider(t, why)
+        if type(t) ~= "table" or seen[t] then return end
+        seen[t] = true
+        hosts[#hosts+1] = { tbl = t, why = why }
+    end
+
+    -- rawget misses anything served through a metatable __index, which is how
+    -- class instances usually expose their methods -- so test both.
+    local function field(t, k)
+        local v = rawget(t, k)
+        if v ~= nil then return v end
+        local ok, v2 = pcall(function() return t[k] end)
+        return ok and v2 or nil
+    end
+
+    consider(AR2_invisAnimatorHost(), "animator (direct)")
+
+    local r = myRecord()
+    for _, h in ipairs({ r,
+                         type(r) == "table" and r.Animator or nil,
+                         type(r) == "table" and r.Animators or nil }) do
+        if type(h) == "table" and field(h, "AddInvisibleCase") ~= nil then
+            consider(h, "character record")
+        end
+    end
+
+    if type(addFn) == "function" and type(getgc) == "function" then
+        local classes = {}
+        pcall(function()
+            for _, t in ipairs(getgc(true)) do
+                if type(t) == "table" then
+                    pcall(function()
+                        if rawget(t, "AddInvisibleCase") == addFn then
+                            classes[t] = true
+                            consider(t, "owns AddInvisibleCase")
+                        elseif type(rawget(t, "InvisibleCases")) == "table" then
+                            consider(t, "has InvisibleCases")
+                        end
+                    end)
+                end
+            end
+        end)
+        -- if what we matched is the CLASS table, the live object is whatever
+        -- has it as its metatable's __index
+        if next(classes) then
+            pcall(function()
+                for _, t in ipairs(getgc(true)) do
+                    if type(t) == "table" and not seen[t] then
+                        local mt = getmetatable(t)
+                        if type(mt) == "table" and classes[rawget(mt, "__index")] then
+                            consider(t, "instance of that class")
+                        end
+                    end
+                end
+            end)
+        end
+    end
+
+    -- an object that already holds the case table is the real one
+    table.sort(hosts, function(a, b)
+        local av = type(field(a.tbl, "InvisibleCases")) == "table" and 1 or 0
+        local bv = type(field(b.tbl, "InvisibleCases")) == "table" and 1 or 0
+        return av > bv
+    end)
+
+    AR2_invisHosts = hosts
+    AR2_invisHostWhy = (#hosts > 0)
+        and ("%d host(s), best: %s"):format(#hosts, hosts[1].why)
+        or  "no object owning AddInvisibleCase found"
+    if #hosts > 0 and not caseHost then caseHost = hosts[1].tbl end
+    return hosts
+end
+
+
+-- CAPTURE THE LIVE CALL
+-- Searching failed for a reason that is not fixable by searching harder:
+-- AddInvisibleCase's only constant is "InvisibleCases", so it does
+-- self.InvisibleCases[...] -- and NOTHING in gc has an InvisibleCases field,
+-- which means the field is created lazily on first use. There is nothing to
+-- find until a case already exists, and we cannot add one without a valid
+-- `self`. Chicken and egg.
+--
+-- The way out: the GAME calls this function with the correct `self` every
+-- time you raise the binoculars. Hook it and let the game hand us both the
+-- object and the real case name. One hook answers every open question at
+-- once -- the host, the spelling, and the argument order.
+AR2_invisCapt = { on = false, calls = {}, host = nil, name = nil }
+
+function AR2_invisCapture(seconds)
+    if AR2_invisCapt.on then return false, "already capturing" end
+    if not addFn and not AR2_invisFindAPI() then
+        return false, "AddInvisibleCase not resolved"
+    end
+    if type(hookfunction) ~= "function" then
+        return false, "this executor has no hookfunction -- cannot capture"
+    end
+
+    local dur = tonumber(seconds) or 15
+    AR2_invisCapt = { on = true, calls = {}, host = nil, name = nil }
+
+    local origAdd, origRem
+    local okHook = pcall(function()
+        origAdd = hookfunction(addFn, function(self, a, b, ...)
+            pcall(function()
+                local rec = {
+                    fn   = "Add",
+                    selfType = typeof(self),
+                    a = tostring(a), b = tostring(b),
+                }
+                -- what IS this object? that is the whole question
+                if type(self) == "table" then
+                    local keys = {}
+                    local n = 0
+                    for k in pairs(self) do
+                        n = n + 1
+                        if n <= 14 and type(k) == "string" then keys[#keys+1] = k end
+                    end
+                    rec.keys = table.concat(keys, ", ")
+                    rec.keyCount = n
+                    AR2_invisCapt.host = self
+                    caseHost = self              -- the real one, from the game
+                end
+                if type(a) == "string" then
+                    AR2_invisCapt.name = a
+                elseif type(b) == "string" then
+                    AR2_invisCapt.name = b
+                end
+                AR2_invisCapt.calls[#AR2_invisCapt.calls+1] = rec
+                warn(("[DROIDWARE] AddInvisibleCase(self=%s, '%s', '%s')")
+                     :format(rec.selfType, rec.a, rec.b))
+            end)
+            return origAdd(self, a, b, ...)
+        end)
+    end)
+    if not okHook then
+        AR2_invisCapt.on = false
+        return false, "hookfunction failed on AddInvisibleCase"
+    end
+
+    if type(removeFn) == "function" then
+        pcall(function()
+            origRem = hookfunction(removeFn, function(self, a, b, ...)
+                pcall(function()
+                    warn(("[DROIDWARE] RemoveInvisibleCase('%s')"):format(tostring(a)))
+                end)
+                return origRem(self, a, b, ...)
+            end)
+        end)
+    end
+
+    task.spawn(function()
+        warn("[DROIDWARE] CAPTURING " .. dur .. "s -- RAISE THE BINOCULARS NOW")
+        local deadline = os.clock() + dur
+        while os.clock() < deadline and AR2_invisCapt.on do task.wait(0.1) end
+        AR2_invisCapt.on = false
+
+        -- Restoring with hookfunction(addFn, origAdd) does NOT reliably undo a
+        -- hook -- it hooks the hook, and the chain can end in nil. That left
+        -- AddInvisibleCase broken, and since Animators.new calls it, every new
+        -- character threw "attempt to call a nil value". Prefer the executor's
+        -- real restore; if there isn't one, say so loudly instead of pretending.
+        local restored = false
+        local rf = (type(restorefunction) == "function" and restorefunction)
+                or (type(restorefunction2) == "function" and restorefunction2)
+        if rf then
+            pcall(function() rf(addFn) restored = true end)
+            if removeFn then pcall(function() rf(removeFn) end) end
+        end
+        if not restored then
+            pcall(function() if origAdd then hookfunction(addFn, origAdd) end end)
+            pcall(function() if origRem and removeFn then hookfunction(removeFn, origRem) end end)
+            warn("[DROIDWARE] this executor has no restorefunction -- the hook "
+                 .. "may not be fully undone. REJOIN before relying on the game "
+                 .. "spawning characters correctly.")
+        end
+
+        local L = { "== INVIS LIVE CAPTURE ==" }
+        if #AR2_invisCapt.calls == 0 then
+            L[#L+1] = "  AddInvisibleCase was never called while you used them."
+            L[#L+1] = "  That means the binocular hide does NOT go through this"
+            L[#L+1] = "  function, and the two call sites I found are used by"
+            L[#L+1] = "  something else entirely. Invisibility via this route is"
+            L[#L+1] = "  a dead end -- I was wrong about the mechanism."
+        else
+            for i, c in ipairs(AR2_invisCapt.calls) do
+                L[#L+1] = ("  [%d] self=%s  arg1='%s'  arg2='%s'"):format(
+                    i, tostring(c.selfType), tostring(c.a), tostring(c.b))
+                if c.keys then
+                    L[#L+1] = ("       self has %d keys: %s"):format(c.keyCount or 0, c.keys)
+                end
+            end
+            L[#L+1] = ""
+            L[#L+1] = ("  captured case name : '%s'"):format(tostring(AR2_invisCapt.name))
+            L[#L+1] = ("  captured host      : %s"):format(
+                AR2_invisCapt.host and "YES -- stored, toggle should work now" or "no")
+            if AR2_invisCapt.name then
+                pcall(function() AR2_CFG.misc.invis.caseName = AR2_invisCapt.name end)
+                L[#L+1] = "  case box set to the captured name."
+            end
+        end
+        local txt = table.concat(L, "\n")
+        print(txt)
+        pcall(function() (setclipboard or toclipboard)(txt) end)
+        AR2_notify(#AR2_invisCapt.calls > 0
+            and "captured! host + name stored" or "never called -- dead end", 7)
+    end)
+
+    return true, "capturing for " .. dur .. "s"
+end
+
+
+-- WHAT ACTUALLY CHANGES WHEN YOU RAISE BINOCULARS
+-- The capture settled that AddInvisibleCase is not the hide. So stop guessing
+-- at an API and just measure the character: snapshot every part's visibility
+-- properties, let the user raise the binoculars, snapshot again, print the
+-- diff. Whatever the real mechanism is, it has to show up here.
+function AR2_invisDiff(seconds)
+    local dur = tonumber(seconds) or 12
+
+    local function snap()
+        local t = {}
+        pcall(function()
+            local char = AR2_LocalPlayer.Character
+            if not char then return end
+            for _, d in ipairs(char:GetDescendants()) do
+                if d:IsA("BasePart") or d:IsA("Decal") or d:IsA("Texture")
+                   or d:IsA("MeshPart") then
+                    local rec = {}
+                    pcall(function() rec.tr = d.Transparency end)
+                    pcall(function() rec.lt = d.LocalTransparencyModifier end)
+                    pcall(function() rec.vis = d.Parent ~= nil end)
+                    t[d:GetFullName()] = rec
+                end
+            end
+            -- the viewmodel usually lives under the camera, not the character
+            local cam = AR2_Workspace.CurrentCamera
+            if cam then
+                for _, d in ipairs(cam:GetChildren()) do
+                    t["CAMERA/" .. d.Name] = { cls = d.ClassName, vis = true }
+                end
+            end
+            local at = {}
+            pcall(function() at = char:GetAttributes() end)
+            for k, v in pairs(at or {}) do t["ATTR/" .. tostring(k)] = { v = tostring(v) } end
+        end)
+        return t
+    end
+
+    task.spawn(function()
+        local before = snap()
+        warn("[DROIDWARE] DIFF: raise the binoculars within " .. dur .. "s")
+        task.wait(dur)
+        local after = snap()
+
+        local L = { "== CHARACTER DIFF (binoculars) ==" }
+        local n = 0
+        for k, a in pairs(after) do
+            local b = before[k]
+            if not b then
+                n = n + 1
+                if n <= 40 then L[#L+1] = ("  + APPEARED %s %s")
+                    :format(k, tostring(a.cls or "")) end
+            else
+                local ch = {}
+                if a.tr ~= b.tr then ch[#ch+1] = ("Transparency %s -> %s")
+                    :format(tostring(b.tr), tostring(a.tr)) end
+                if a.lt ~= b.lt then ch[#ch+1] = ("LocalTransparencyModifier %s -> %s")
+                    :format(tostring(b.lt), tostring(a.lt)) end
+                if a.v ~= b.v then ch[#ch+1] = ("value %s -> %s")
+                    :format(tostring(b.v), tostring(a.v)) end
+                if #ch > 0 then
+                    n = n + 1
+                    if n <= 40 then L[#L+1] = ("  ~ %s : %s"):format(k, table.concat(ch, ", ")) end
+                end
+            end
+        end
+        for k in pairs(before) do
+            if after[k] == nil then
+                n = n + 1
+                if n <= 40 then L[#L+1] = "  - REMOVED " .. k end
+            end
+        end
+        if n == 0 then
+            L[#L+1] = "  nothing on your character changed at all."
+            L[#L+1] = "  The hide is not local -- it is the SERVER deciding who"
+            L[#L+1] = "  sees you, and the client cannot fake that."
+        else
+            L[#L+1] = ("  %d change(s)%s"):format(n, n > 40 and " (first 40 shown)" or "")
+        end
+        local txt = table.concat(L, "\n")
+        print(txt)
+        pcall(function() (setclipboard or toclipboard)(txt) end)
+        AR2_notify(("diff: %d change(s)"):format(n), 6)
+    end)
+    return true, "diffing for " .. dur .. "s"
+end
+
+function AR2_invisListCases()
+    local names, seen = {}, {}
+    for _, t in ipairs(caseTables()) do
+        pcall(function()
+            for k, v in pairs(t) do
+                local nm = (type(k) == "string") and k
+                    or (type(v) == "string" and v or nil)
+                if nm and #nm < 48 and not seen[nm] then
+                    seen[nm] = true
+                    names[#names+1] = nm
+                end
+            end
+        end)
+    end
+    return names
+end
+
+-- The string constants inside AddInvisibleCase/RemoveInvisibleCase often
+-- include the very case names the game passes, so this can answer the
+-- spelling question without the user doing anything at all.
+function AR2_invisConstants()
+    local out, seen = {}, {}
+    if type(debug) ~= "table" or type(debug.getconstants) ~= "function" then
+        return out, "debug.getconstants unavailable on this executor"
+    end
+    for _, f in ipairs({ addFn, removeFn }) do
+        if type(f) == "function" then
+            pcall(function()
+                for _, c in ipairs(debug.getconstants(f)) do
+                    if type(c) == "string" and #c > 2 and #c < 48 and not seen[c] then
+                        seen[c] = true
+                        out[#out+1] = c
+                    end
+                end
+            end)
+        end
+    end
+    return out, nil
+end
+
+-- The decisive measurement: poll while the user actually raises the
+-- binoculars, and report the exact name the moment it is added.
+AR2_invisWatching = false
+function AR2_invisWatch(seconds)
+    if AR2_invisWatching then return false, "already watching" end
+    if not addFn and not AR2_invisFindAPI() then
+        return false, "API not resolved -- press Find API first"
+    end
+    AR2_invisWatching = true
+    local dur = tonumber(seconds) or 12
+
+    task.spawn(function()
+        local before = {}
+        for _, n in ipairs(AR2_invisListCases()) do before[n] = true end
+        local found, deadline = {}, os.clock() + dur
+        warn("[DROIDWARE] WATCHING " .. dur .. "s -- RAISE AND LOOK THROUGH THE "
+             .. "BINOCULARS NOW, then lower them")
+        while os.clock() < deadline and AR2_invisWatching do
+            task.wait(0.05)
+            for _, n in ipairs(AR2_invisListCases()) do
+                if not before[n] and not found[n] then
+                    found[n] = true
+                    warn("[DROIDWARE] CASE APPEARED: '" .. n .. "'")
+                end
+            end
+        end
+        AR2_invisWatching = false
+
+        local list = {}
+        for n in pairs(found) do list[#list+1] = n end
+        local lines = { "== INVIS CASE WATCH ==" }
+        if #list > 0 then
+            lines[#lines+1] = "  cases that appeared while you used them:"
+            for _, n in ipairs(list) do lines[#lines+1] = "    '" .. n .. "'" end
+            lines[#lines+1] = "  Put the exact spelling above into the case box."
+            pcall(function()
+                AR2_CFG.misc.invis.caseName = list[1]
+            end)
+            lines[#lines+1] = "  (case box set to '" .. tostring(list[1]) .. "')"
+        else
+            lines[#lines+1] = "  nothing appeared."
+            lines[#lines+1] = "  Either the table we are watching is not the one the"
+            lines[#lines+1] = "  game writes to, or the hide is not case-based at all."
+            local consts = AR2_invisConstants()
+            if #consts > 0 then
+                lines[#lines+1] = ""
+                lines[#lines+1] = "  strings baked into AddInvisibleCase/Remove:"
+                for _, c in ipairs(consts) do lines[#lines+1] = "    " .. c end
+            end
+            lines[#lines+1] = ""
+            lines[#lines+1] = ("  tables being watched: %d"):format(#caseTables())
+            lines[#lines+1] = ("  host objects found  : %d  (%s)")
+                :format(#(AR2_invisHosts or {}), tostring(AR2_invisHostWhy))
+        end
+        local txt = table.concat(lines, "\n")
+        print(txt)
+        pcall(function() (setclipboard or toclipboard)(txt) end)
+        AR2_notify(#list > 0 and ("case found: " .. list[1]) or "no case appeared", 6)
+    end)
+    return true, "watching for " .. dur .. "s"
+end
+
+local function applyCase(on)
+    local name = AR2_CFG.misc.invis.caseName
+    if type(name) ~= "string" or name == "" then name = "Binoculars" end
+    AR2_INVIS.caseName = name
+    if not caseHost then pcall(AR2_invisFindHosts) end
+    -- The capture listed RemoveInvisibleCase among the host's own 48 keys, so
+    -- take it from the object rather than from the gc sweep, which never
+    -- found it and left the toggle with no undo (that is why you got stuck).
+    local fn = on and addFn or removeFn
+    if caseHost then
+        local hostFn
+        pcall(function()
+            hostFn = caseHost[on and "AddInvisibleCase" or "RemoveInvisibleCase"]
+        end)
+        if type(hostFn) == "function" then fn = hostFn end
+    end
+    if type(fn) ~= "function" then
+        AR2_INVIS.lastErr = on and "no AddInvisibleCase" or "no RemoveInvisibleCase"
+        return false
+    end
+    if not caseHost then pcall(AR2_invisFindHosts) end
+    local ok, err
+    if caseHost then
+        ok, err = pcall(function() fn(caseHost, name) end)
+    else
+        -- fn(name) passes the case name as `self`. It never errors and never
+        -- works, so report that instead of a false success.
+        ok, err = false, "no host object for AddInvisibleCase (" ..
+                         tostring(AR2_invisHostWhy) .. ")"
+    end
+    if not ok then AR2_INVIS.lastErr = tostring(err):sub(1, 90) end
+    return ok
+end
+
+
+-- ===== SERVER-SIDE INVISIBILITY ============================================
+-- Evidence, in order:
+--   1. AddInvisibleCase is a local render flag (live capture: it sits on the
+--      Animator beside BodyParts and LodVisibleCutOff)
+--   2. raising binoculars changes nothing on your own character (diff)
+--   3. the client SENDS "Character Toggle Binoculars" with a case-name string
+--      and the server relays it (wire log)
+--
+-- Those only fit together one way: the server broadcasts the case name, and
+-- every OTHER client calls AddInvisibleCase on your character with it. The
+-- render system was right all along -- it just runs on their machine.
+--
+-- So this does not touch your own Animator at all. It sends the message, and
+-- the Send hook above swallows the game's "lower" message so the state
+-- sticks after you put the binoculars away.
+AR2_SRVINVIS = { on = false, blocked = 0, sent = 0, conn = nil, why = "off" }
+
+
+-- WHY THE ANIMATOR BREAKS, AND THE ONLY SAFE WINDOW
+-- The server broadcasts the case to everyone INCLUDING us. Our own client
+-- then tries to put the character into a binocular pose -- and if we are not
+-- actually holding binoculars there is no ThirdPersonPoseData to pose from,
+-- so solveArm throws every frame, per limb.
+--
+-- That makes the constraint concrete rather than a guess: re-asserting is
+-- safe exactly when binoculars are equipped. So gate on that instead of
+-- relying on a default, which a saved config overrides anyway.
+function AR2_srvInvisHoldingBinos()
+    local held = false
+    pcall(function()
+        local c = AR2_LocalPlayer.Character
+        if not c then return end
+        local nm = AR2_equippedItem(c)
+        if type(nm) == "string" and string.find(string.lower(nm), "binocular", 1, true) then
+            held = true
+        end
+    end)
+    return held
+end
+
+function AR2_srvInvisSend(caseName)
+    local net = AR2_resolveNetTable()
+    if not net then
+        -- the resolver needs a fired shot to find the table; fall back to the
+        -- library directly so invis does not depend on having shot something
+        pcall(function()
+            -- FindFirstChild, not WaitForChild: a yield here would stall
+            -- whatever thread called us, including the UI build
+            local m = AR2_ReplicatedFirst:FindFirstChild("Framework")
+            net = m and require(m).Libraries.Network or nil
+        end)
+    end
+    if type(net) ~= "table" or type(rawget(net, "Send")) ~= "function" then
+        AR2_SRVINVIS.why = "Network library unreachable"
+        return false
+    end
+    local ok = pcall(function() net:Send("Character Toggle Binoculars", caseName) end)
+    if ok then AR2_SRVINVIS.sent = (AR2_SRVINVIS.sent or 0) + 1 end
+    return ok
+end
+
+
+-- SAFETY: the animator error watchdog
+-- Holding a binocular state you are not physically in makes the animator try
+-- to solve arm IK against pose data that does not exist:
+--     Animators.Character:1522 attempt to index nil with 'ThirdPersonPoseData'
+-- It throws per frame, per limb -- hundreds of errors a second, and the
+-- client's memory climbs with them. A feature that does that has to turn
+-- itself off; relying on the user to notice a console they cannot see while
+-- playing is not a safety mechanism.
+AR2_srvInvisErrors = 0
+AR2_srvInvisGuardOn = false
+
+function AR2_srvInvisInstallGuard()
+    if AR2_srvInvisGuardOn then return end
+    local ok = pcall(function()
+        local LogService = game:GetService("LogService")
+        LogService.MessageOut:Connect(function(msg, msgType)
+            if msgType ~= Enum.MessageType.MessageError then return end
+            if not AR2_SRVINVIS.on then return end
+            local m = tostring(msg)
+            if string.find(m, "ThirdPersonPoseData", 1, true)
+            or string.find(m, "Animators.Character", 1, true)
+            or string.find(m, "findArmIKPoses", 1, true)
+            or string.find(m, "stepAnimator", 1, true) then
+                AR2_srvInvisErrors = AR2_srvInvisErrors + 1
+                if AR2_srvInvisErrors >= 12 then
+                    AR2_srvInvisErrors = 0
+                    AR2_CFG.misc.invis.server = false
+                    AR2_SRVINVIS.on = false     -- stop the damage immediately
+                    -- Everything that touches an Instance goes to a normal
+                    -- thread: this callback runs on a restricted one, where
+                    -- any Instance access throws "lacking capability Plugin".
+                    task.defer(function()
+                        pcall(AR2_setServerInvis, false)
+                        warn("[DROIDWARE SAFETY] server invis turned ITSELF OFF -- "
+                             .. "it was breaking the character animator "
+                             .. "(ThirdPersonPoseData). Hold the binoculars while "
+                             .. "using it, or leave it off.")
+                        pcall(function()
+                            Notif.new({ Title = "DROIDWARE SAFETY",
+                                Content = "Server invis disabled itself: it was "
+                                    .. "spamming animator errors.", Duration = 9 })
+                        end)
+                    end)
+                end
+            end
+        end)
+    end)
+    AR2_srvInvisGuardOn = ok
+end
+
+function AR2_setServerInvis(on)
+    AR2_CFG.misc.invis.server = false
+    if on then AR2_notify("invisibility is not in this build", 4) end
+    do return false end
+end
+function AR2_setServerInvis_disabled(on)
+    AR2_CFG.misc.invis.server = on and true or false
+
+    if AR2_SRVINVIS.conn then
+        pcall(function() AR2_SRVINVIS.conn:Disconnect() end)
+        AR2_SRVINVIS.conn = nil
+    end
+
+    if not on then
+        -- Nothing was ever sent, so there is nothing to undo. This matters
+        -- because the UI fires every toggle's callback once while building,
+        -- and reaching for the Network library there would yield and throw.
+        if not AR2_SRVINVIS.on and (AR2_SRVINVIS.sent or 0) == 0 then
+            AR2_SRVINVIS.why = "off"
+            return true
+        end
+        AR2_SRVINVIS.on = false          -- clear first so the clear is not blocked
+        AR2_srvInvisSend("")
+        AR2_SRVINVIS.why = "off"
+        AR2_notify("server invis off", 3)
+        return true
+    end
+
+    AR2_installNetHook()                 -- needed to swallow the game's clear
+    if AR2_CFG.misc.invis.autoGuard ~= false then
+        pcall(AR2_srvInvisInstallGuard)
+    end
+    AR2_srvInvisErrors = 0
+    AR2_SRVINVIS.on = true
+    local name = AR2_CFG.misc.invis.caseName
+    if type(name) ~= "string" or name == "" then name = "Binoculars" end
+
+    local sent = AR2_srvInvisSend(name)
+    if not sent then
+        AR2_SRVINVIS.on = false
+        AR2_notify("server invis failed: " .. tostring(AR2_SRVINVIS.why), 6)
+        return false
+    end
+    AR2_SRVINVIS.why = "sent '" .. name .. "'"
+    if AR2_CFG.misc.invis.reassert and not AR2_srvInvisHoldingBinos() then
+        warn("[DROIDWARE] re-assert is on but you are not holding binoculars -- "
+             .. "it will stay paused, because repeating the state without them "
+             .. "makes your own animator throw ThirdPersonPoseData errors.")
+    end
+
+    -- Re-assert on a slow timer: respawning, re-equipping or the server
+    -- timing the state out would otherwise quietly drop it, and you would
+    -- never know because you cannot see your own hidden state.
+    if AR2_CFG.misc.invis.reassert ~= false then
+        local nextAt = 0
+        AR2_SRVINVIS.conn = AR2_RunService.Heartbeat:Connect(function()
+            if not AR2_SRVINVIS.on then return end
+            local now = os.clock()
+            if now < nextAt then return end
+            nextAt = now + math.clamp(tonumber(AR2_CFG.misc.invis.reassertSecs) or 3, 0.1, 30)
+            -- Skip rather than spam: without binoculars equipped this is what
+            -- produces the ThirdPersonPoseData flood.
+            if AR2_srvInvisHoldingBinos() then
+                AR2_SRVINVIS.why = "re-asserting (binoculars held)"
+                pcall(AR2_srvInvisSend, name)
+            else
+                AR2_SRVINVIS.why = "re-assert PAUSED -- equip binoculars to resume"
+            end
+        end)
+    end
+
+    AR2_notify("server invis ON -- have someone else confirm", 6)
+    return true
+end
+
+function AR2_srvInvisStatus()
+    return table.concat({
+        "== SERVER INVIS ==",
+        ("  on        : %s"):format(tostring(AR2_SRVINVIS.on)),
+        ("  case name : %s"):format(tostring(AR2_CFG.misc.invis.caseName)),
+        ("  sends     : %d"):format(AR2_SRVINVIS.sent or 0),
+        ("  clears swallowed: %d"):format(AR2_SRVINVIS.blocked or 0),
+        ("  net hook  : %s"):format(tostring(AR2_netSendOrig ~= nil)),
+        ("  re-assert : %s"):format(AR2_CFG.misc.invis.reassert and "ON" or "off"),
+        ("  binoculars held: %s"):format(tostring(AR2_srvInvisHoldingBinos())),
+        ("  note      : %s"):format(tostring(AR2_SRVINVIS.why)),
+        "",
+        "  You cannot verify this yourself -- your own client never hides you.",
+        "  Ask another player whether they can see you.",
+    }, "\n")
+end
+
+function AR2_setInvisible(on)
+    AR2_CFG.misc.invis.on = false
+    do return false end
+end
+function AR2_setInvisible_disabled(on)
+    AR2_CFG.misc.invis.on = on and true or false
+    if on then
+        if not AR2_INVIS.api and not AR2_invisFindAPI() then
+            AR2_CFG.misc.invis.on = false
+            AR2_INVIS.held = false
+            warn("[DROIDWARE] invisibility: " .. tostring(AR2_INVIS.why))
+            return false
+        end
+        AR2_INVIS.held = applyCase(true)
+        if AR2_INVIS.held then
+            -- A live capture proved the game never calls AddInvisibleCase when
+            -- you actually use binoculars, so this call going through does NOT
+            -- mean you are hidden. Saying "ON" here was a false success claim.
+            warn("[DROIDWARE] invisibility: case added. This is a LOCAL render "
+                 .. "flag on your own Animator -- other players still see you. "
+                 .. "Toggle off to remove it.")
+        else
+            warn("[DROIDWARE] invisibility failed: " .. tostring(AR2_INVIS.lastErr
+                 or AR2_INVIS.why))
+        end
+        return AR2_INVIS.held
+    end
+    applyCase(false)
+    AR2_INVIS.held = false
+    return true
+end
+
+-- The record is rebuilt on respawn, so the case and the resolved API both die
+-- with it. Re-resolve and re-apply rather than leaving a lit toggle doing
+-- nothing, which is the failure mode this hub keeps producing.
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if AR2_CFG.misc.invis.on and AR2_CFG.misc.invis.reapply then
+            pcall(function()
+                if not AR2_INVIS.api then AR2_invisFindAPI() end
+                if AR2_INVIS.api and not AR2_INVIS.held then
+                    AR2_INVIS.held = applyCase(true)
+                end
+            end)
+        end
+    end
+end)
+
+pcall(function()
+    AR2_LocalPlayer.CharacterAdded:Connect(function()
+        if not AR2_CFG.misc.invis.on then return end
+        task.wait(1.5)
+        AR2_INVIS.api, AR2_INVIS.held = false, false
+        pcall(AR2_invisFindAPI)
+        if AR2_INVIS.api then AR2_INVIS.held = applyCase(true) end
+    end)
+end)
+end
+
+function AR2_rageBotVisCheck(model, part, origin)
+    if not part then return false end
+    local W = AR2_CFG.weapon
+    local ignore = { AR2_LocalPlayer.Character, model }
+
+    -- Separate from the weapon budget on purpose: targeting and the bullet
+    -- were sharing one number, so widening wallbang for manual shots also made
+    -- the bot take shots it could not actually land.
+    local budget = tonumber(AR2_CFG.rageBot.penBudget)
+                   or tonumber(W.penBudget) or 5
+    if W.penUnlimited then budget = math.huge end
+
+    -- candidate aim points, cheapest wins
+    local pts = { part.Position }
+    if model then
+        local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+        if root and root ~= part then pts[#pts + 1] = root.Position end
+        local head = model:FindFirstChild("Head")
+        if head and head ~= part then pts[#pts + 1] = head.Position end
+        -- a point pulled back toward us off the part surface rescues the case
+        -- where an expanded hitbox has its centre buried in geometry
+        if root then
+            local back = (origin - root.Position)
+            if back.Magnitude > 1 then
+                pts[#pts + 1] = root.Position + back.Unit * 1.5
+            end
+        end
+    end
+
+    local bestTotal, bestWalls, bestReached = math.huge, 0, false
+    for _, pos in ipairs(pts) do
+        local t, w, r = AR2_penStudsTo(origin, pos, ignore)
+        if r and t < bestTotal then bestTotal, bestWalls, bestReached = t, w, true end
+    end
+
+    -- last resort: nudge the origin, same as before, but only if nothing hit
+    if not bestReached and (tonumber(AR2_CFG.magicAim.originRadius) or 0) > 0 then
+        pcall(function()
+            local dir = (part.Position - origin).Unit
+            local nudge = math.clamp((tonumber(AR2_CFG.magicAim.originRadius) or 2) * 0.5, 0, 5)
+            local shifted, shiftedClear = AR2_findBestOrigin(origin + dir * nudge, dir, part.Position, model)
+            if shiftedClear and shifted then
+                local t2, w2, r2 = AR2_penStudsTo(shifted, part.Position, ignore)
+                if r2 then bestTotal, bestWalls, bestReached = t2, w2, true end
+            end
+        end)
+    end
+
+    if bestTotal == math.huge then bestTotal = 0 end
+    AR2_lastPathStuds, AR2_lastPathWalls = bestTotal, bestWalls
+
+    if not bestReached then
+        AR2_lastPathWhy = "no path to target"
+        return (W.penUnlimited and W.wallbang) and true or false
+    end
+    if bestTotal <= 0.01 then
+        AR2_lastPathWhy = "clear line"
+        return true
+    end
+    if not (W.wallbang or W.wallbangFilter) then
+        AR2_lastPathWhy = ("blocked %.1f studs, wallbang off"):format(bestTotal)
+        return false
+    end
+    -- THE FIX: the cost we just measured is finally compared against something
+    if bestTotal > budget then
+        AR2_lastPathWhy = ("too thick: %.1f studs > budget %.1f"):format(bestTotal, budget)
+        AR2_pathRejects = (AR2_pathRejects or 0) + 1
+        return false
+    end
+    AR2_pathAccepts = (AR2_pathAccepts or 0) + 1
+    AR2_lastPathWhy = ("pen %.1f / %.1f studs, %d wall(s)"):format(bestTotal, budget, bestWalls)
+    return true
 end
 
 
@@ -9038,7 +11498,14 @@ local function AR2_rageBotTarget()
             if part then
                 local dist = (part.Position - origin).Magnitude
                 if dist <= rc.maxDist then
-                    if rc.visCheck and not AR2_CFG.weapon.wallbang then
+                    -- Was `not AR2_CFG.weapon.wallbang`: turning wallbang on
+                    -- disabled the path check completely, so the bot fired at
+                    -- anything in range through any amount of geometry. But
+                    -- wallbang has a BUDGET -- past it the bullet dies -- and
+                    -- AR2_rageBotVisCheck already prices the walls against
+                    -- that budget. The only case with nothing to check is
+                    -- genuinely unlimited penetration.
+                    if rc.visCheck and not AR2_CFG.weapon.penUnlimited then
                         if not AR2_rageBotVisCheck(model, part, origin) then
                             continue
                         end
@@ -9107,7 +11574,11 @@ local function AR2_doInventoryFire(part)
             function() pcall(AR2_releaseIgnoredParts) end)
     end
 
-    if false then
+    -- This was `if false then` -- the rage bot's own origin shift has been
+    -- dead code. AR2_findLegalOrigin never ran, so the bot would judge a
+    -- target reachable by shifting the muzzle and then fire from the
+    -- unshifted origin anyway: "detects it can shift but doesn't".
+    if AR2_CFG.rageBot.originAdjust then
         local newOrigin, moved, stillBlocked = AR2_findLegalOrigin(origin, dest)
         blocker = stillBlocked
         if moved > 0.01 then
@@ -9115,6 +11586,7 @@ local function AR2_doInventoryFire(part)
             local nd = dest - origin
             if nd.Magnitude > 0.001 then dir = nd.Unit end
             AR2_lastOriginAdj = moved
+            AR2_rageOriginShifts = (AR2_rageOriginShifts or 0) + 1
         end
     elseif AR2_CFG.rageBot.legalOnly then
         blocker = AR2_serverPathBlocked(origin, dest)
@@ -9129,16 +11601,42 @@ local function AR2_doInventoryFire(part)
         return
     end
 
+    -- The old guard was `if not saved` -- so whenever you were ALREADY
+    -- holding something (the normal case) it never spoofed at all, and the
+    -- shot went out while the game believed a different weapon was out.
+    -- That is the "doesn't register / no spread" symptom: the fire path is
+    -- validated against the equipped item, and ours did not match.
+    -- Spoof unconditionally for the duration of the shot, then restore.
     local saved, spoofed = nil, false
     pcall(function()
         if pc and pc.Character then
             saved = pc.Character.EquippedItem
-            if not saved then
+            if saved ~= wi then
                 pc.Character.EquippedItem = wi
                 spoofed = true
             end
         end
     end)
+
+    -- Optional: tell the SERVER too. The client field above only changes what
+    -- this client believes; if the server validates the shot against its own
+    -- idea of what you are holding, only a real equip message moves that.
+    -- Built in rather than a toggle: a shot whose weapon the game does not
+    -- believe is out is the thing that fails to register, so there is no
+    -- sensible reason to fire without it. Still skipped when we cannot
+    -- resolve an item id, since sending a malformed equip is worse than
+    -- sending none.
+    local sentEquip = false
+    if spoofed then
+        pcall(function()
+            local net = AR2_resolveNetTable()
+            local id  = (type(wi) == "table" and (wi.Id or wi.ID or wi.Guid)) or wi
+            if net and id then
+                net:Send("Character Equip Item", id)
+                sentEquip = true
+            end
+        end)
+    end
 
 
     AR2_stForced       = nil
@@ -9146,14 +11644,29 @@ local function AR2_doInventoryFire(part)
     AR2_rageShotPart   = part
     AR2_rageShotUntil  = os.clock() + 0.25
     AR2_rageFireMark   = os.clock()
+    AR2_rageShotsFired = (AR2_rageShotsFired or 0) + 1
+    pcall(AR2_rageNoteShot)
 
+    -- Read at call time, not cached: this resolves to AR2_newBulletsFire (the
+    -- installed hook), which is what applies the redirect and the spread
+    -- compensation. Calling AR2_originalFireFunction here instead would
+    -- bypass both and fire raw, scattered shots.
     local fireFn = (AR2_Bullets and AR2_Bullets.Fire) or AR2_originalFireFunction
+    AR2_rageUsedHook = (fireFn ~= AR2_originalFireFunction)
     local ok, err = pcall(fireFn,
         fp.self, pc, wi, wd,
         origin, dir, math.random(100000, 999999)
     )
 
     AR2_rageShotActive = false
+
+    if sentEquip then
+        pcall(function()
+            local net = AR2_resolveNetTable()
+            local id  = (type(wi) == "table" and (wi.Id or wi.ID or wi.Guid)) or wi
+            if net and id then net:Send("Character Unequip Item", id) end
+        end)
+    end
 
     if spoofed then
         pcall(function()
@@ -9339,10 +11852,26 @@ local function AR2_rageBotStep()
 
     if hasTarget then
         if gunOut and vimOk then
-            AR2_rageShotPart  = part
-            AR2_rageShotUntil = os.clock() + 0.30
-            pcall(function() AR2_VIM:SendMouseButtonEvent(0,0,0,true,game,1) end)
-            AR2_rbHeld = true
+            -- RATE GATE.
+            -- This path used to re-send a mouse-down on EVERY rage step with
+            -- nothing limiting it, while the inventory path below correctly
+            -- paced itself with AR2_getFireInterval. On a semi-auto each of
+            -- those presses is another shot request, which is how this ends up
+            -- firing far faster than the weapon can and drawing attention.
+            -- Same interval the game itself would enforce.
+            local now = os.clock()
+            local iv = AR2_rageInterval()
+            if (not AR2_rbHeld) or (now - (AR2_rbLastFire or 0)) >= iv then
+                if AR2_rbLastFire and AR2_rbLastFire > 0 then
+                    AR2_rpmEffective = 60 / math.max(now - AR2_rbLastFire, 0.001)
+                end
+                AR2_shotsSent = AR2_shotsSent + 1
+                AR2_rbLastFire    = now
+                AR2_rageShotPart  = part
+                AR2_rageShotUntil = now + 0.30
+                pcall(function() AR2_VIM:SendMouseButtonEvent(0,0,0,true,game,1) end)
+                AR2_rbHeld = true
+            end
         elseif gunOut and not vimOk then
             AR2_releaseVIM()
         elseif c.inventoryShoot and invOk and AR2_hasRealWD and part
@@ -9350,9 +11879,28 @@ local function AR2_rageBotStep()
             AR2_releaseVIM()
             local now = os.clock()
             local sfp = AR2_seedForEquipped()
-            if now - AR2_rbLastFire >= AR2_getFireInterval(sfp.wi, sfp.wd) then
-                AR2_rbLastFire = now
-                AR2_doInventoryFire(part)
+            if now - AR2_rbLastFire >= AR2_rageInterval() then
+                if AR2_rbLastFire > 0 then
+                    AR2_rpmEffective = 60 / math.max(now - AR2_rbLastFire, 0.001)
+                end
+                -- stop at empty instead of sending shots for a dry gun
+                local left = AR2_invAmmoLeft()
+                if AR2_CFG.rageBot.trackAmmo and left ~= nil and left <= 0 then
+                    if not AR2_invNeedsReload then
+                        AR2_invNeedsReload = true
+                        AR2_notify("rage bot: magazine empty -- reload", 4)
+                        if AR2_CFG.rageBot.autoReloadInv then
+                            if AR2_invTryReload() then
+                                AR2_notify("rage bot: reloaded", 3)
+                            end
+                        end
+                    end
+                else
+                    AR2_shotsSent = AR2_shotsSent + 1
+                    AR2_rbLastFire = now
+                    AR2_invShots = (AR2_invShots or 0) + 1
+                    AR2_doInventoryFire(part)
+                end
             end
         else
             AR2_releaseVIM()
@@ -9718,6 +12266,12 @@ if AR2_success and AR2_Bullets and AR2_Bullets.Fire then
                         AR2_stForced = st
                         usedComp = true
                         AR2_spreadCompHits = (AR2_spreadCompHits or 0) + 1
+                        -- counted separately: the global tally cannot tell a
+                        -- rage shot from a manual one, and "is the RAGE path
+                        -- compensated" is the question being asked
+                        if rageShot then
+                            AR2_rageCompShots = (AR2_rageCompShots or 0) + 1
+                        end
 
 
                         AR2_spreadSelfTest(direction, want, angle, st)
@@ -12576,6 +15130,16 @@ AR2_guiStats       = { buttons = 0, locks = 0, hooks = 0 }
 
 AR2_GUI_LOCK_WORDS = { "lock", "padlock", "owned", "unowned", "locked" }
 AR2_GUI_EQUIP_WORDS = { "equip", "wear", "apply", "dress", "select" }
+-- Tested BEFORE the equip list, because "unequip" contains "equip" and would
+-- otherwise match it and re-dress the item you were trying to take off.
+AR2_GUI_UNEQUIP_WORDS = { "unequip", "un-equip", "unwear", "remove", "take off",
+                          "takeoff", "none", "clear" }
+function AR2_guiIsUnequip(txt)
+    for _, w in ipairs(AR2_GUI_UNEQUIP_WORDS) do
+        if string.find(txt, w, 1, true) then return true end
+    end
+    return false
+end
 
 function AR2_guiIsLockThing(d)
     local n = string.lower(tostring(d.Name))
@@ -12585,18 +15149,43 @@ function AR2_guiIsLockThing(d)
     return false
 end
 
+AR2_GUI_ROOT_WORDS = {
+    "mainmenu", "wardrobe", "character", "menu", "shop", "store", "cosmetic",
+    "inventory", "customi", "skin", "appearance", "outfit", "locker", "closet",
+    "loadout", "armory", "armoury", "catalog", "market",
+}
 function AR2_guiWardrobeRoots()
     local roots, pg = {}, AR2_LocalPlayer:FindFirstChild("PlayerGui")
     if not pg then return roots end
+    -- Only Enabled guis: a disabled ScreenGui has nothing on screen to unlock
+    -- and walking its descendants 3x a second was pure waste.
     for _, g in ipairs(pg:GetChildren()) do
         if g:IsA("ScreenGui") then
-            local n = string.lower(g.Name)
-            if string.find(n, "mainmenu", 1, true)
-            or string.find(n, "wardrobe", 1, true)
-            or string.find(n, "character", 1, true)
-            or string.find(n, "menu", 1, true) then
-                roots[#roots+1] = g
+            local on = true
+            pcall(function() on = g.Enabled end)
+            if on then
+                local n = string.lower(g.Name)
+                local skip = false
+                for _, w in ipairs(AR2_GUI_SKIP_ROOTS) do
+                    if string.find(n, w, 1, true) then skip = true break end
+                end
+                for _, w in ipairs(skip and {} or AR2_GUI_ROOT_WORDS) do
+                    if string.find(n, w, 1, true) then
+                        roots[#roots+1] = g
+                        break
+                    end
+                end
             end
+        end
+    end
+    -- Fallback: if the game names its menu something we did not predict, we
+    -- would silently do nothing at all. Better to sweep every enabled gui
+    -- than to look broken.
+    if #roots == 0 and AR2_CFG.misc.guiUnlockAnyGui then
+        for _, g in ipairs(pg:GetChildren()) do
+            local on = true
+            pcall(function() on = g.Enabled end)
+            if g:IsA("ScreenGui") and on then roots[#roots+1] = g end
         end
     end
     return roots
@@ -12642,11 +15231,94 @@ function AR2_guiMenuOpen()
     return false
 end
 
-function AR2_guiSweep()
-    AR2_guiStats = { buttons = 0, locks = 0, hooks = AR2_guiStats.hooks or 0 }
+-- Shared by the initial sweep and the DescendantAdded listener, so both
+-- paths behave identically. The post-click re-sweep is bounded (6 x 50ms)
+-- because the menu rebuilds its tiles after an equip.
+function AR2_guiOnClick(d)
+    if not AR2_CFG.misc.guiUnlock then return end
 
+    local txt = ""
+    pcall(function() txt = string.lower(tostring(d.Text or d.Name)) end)
+
+    local isUnequip = AR2_guiIsUnequip(txt)
+    local isEquip = false
+    if not isUnequip then
+        for _, w in ipairs(AR2_GUI_EQUIP_WORDS) do
+            if string.find(txt, w, 1, true) then isEquip = true break end
+        end
+    end
+
+    local item = AR2_guiItemNameOf(d)
+    if item then AR2_guiLastItem = item end
+
+    task.spawn(function()
+        for _ = 1, 6 do
+            task.wait(0.05)
+            if not AR2_CFG.misc.guiUnlock then return end
+            if not AR2_guiMenuOpen() then return end
+            pcall(AR2_guiSweep)
+        end
+    end)
+
+    local target = ((isEquip or isUnequip) and AR2_guiLastItem) or item
+    if isUnequip and target then
+        local slot = AR2_guiSlotFor(target)
+        local key = (slot == "Accessory") and "Accessory1"
+                    or (AR2_COS_SLOTKEY[slot] or slot)
+        local ok, why = AR2_cosUndress(key)
+        AR2_guiNote = (ok and "removed " or "remove failed ")
+            .. tostring(key) .. " -- " .. tostring(why)
+    elseif target and (isEquip or AR2_CFG.misc.guiDressOnClick) then
+        local slot = AR2_guiSlotFor(target)
+        local ok, why = AR2_cosDress(slot, target, slot == "Accessory" and 1 or nil)
+        AR2_guiNote = (ok and "worn " or "failed ")
+            .. tostring(target) .. " -- " .. tostring(why)
+    end
+end
+
+-- One element's worth of the sweep, so a newly added tile can be handled on
+-- its own instead of re-walking the entire interface.
+function AR2_guiUnlockOne(d)
+    if (d:IsA("ImageLabel") or d:IsA("Frame") or d:IsA("TextLabel"))
+       and AR2_guiIsLockThing(d) then
+        if d.Visible then
+            pcall(function() d.Visible = false end)
+            AR2_guiStats.locks = (AR2_guiStats.locks or 0) + 1
+        end
+        return
+    end
+    if not (d:IsA("ImageButton") or d:IsA("TextButton")) then return end
+    pcall(function()
+        d.Active, d.Selectable, d.AutoButtonColor = true, true, true
+        if d:IsA("ImageButton") and d.ImageTransparency > 0.3 then d.ImageTransparency = 0 end
+        if d:IsA("TextButton")  and d.TextTransparency  > 0.3 then d.TextTransparency  = 0 end
+    end)
+    AR2_guiStats.buttons = (AR2_guiStats.buttons or 0) + 1
+    if not AR2_guiHookedBtns[d] then
+        AR2_guiHookedBtns[d] = true
+        AR2_guiStats.hooks = (AR2_guiStats.hooks or 0) + 1
+        d.MouseButton1Click:Connect(function() pcall(AR2_guiOnClick, d) end)
+    end
+end
+
+AR2_GUI_SWEEP_BUDGET = 30000
+-- RadialMenu is the weapon wheel, not a wardrobe, and it is enormous: it ate
+-- the whole sweep budget (status reported 5999 scanned, capped) so MainMenu
+-- was only ever half-walked.
+AR2_GUI_SKIP_ROOTS = { "radialmenu", "hotbar", "hud", "chat", "notification" }
+function AR2_guiSweep()
+    AR2_guiStats = { buttons = 0, locks = 0, hooks = AR2_guiStats.hooks or 0,
+                     scanned = 0, capped = false }
+
+    local budget = AR2_GUI_SWEEP_BUDGET
     for _, root in ipairs(AR2_guiWardrobeRoots()) do
         for _, d in ipairs(root:GetDescendants()) do
+            budget = budget - 1
+            if budget <= 0 then
+                AR2_guiStats.capped = true
+                break
+            end
+            AR2_guiStats.scanned = AR2_guiStats.scanned + 1
             if (d:IsA("ImageLabel") or d:IsA("Frame") or d:IsA("TextLabel"))
                and AR2_guiIsLockThing(d) then
                 if d.Visible then
@@ -12673,38 +15345,7 @@ function AR2_guiSweep()
                     AR2_guiHookedBtns[d] = true
                     AR2_guiStats.hooks = AR2_guiStats.hooks + 1
                     d.MouseButton1Click:Connect(function()
-                        if not AR2_CFG.misc.guiUnlock then return end
-
-                        local txt = ""
-                        pcall(function()
-                            txt = string.lower(tostring(d.Text or d.Name))
-                        end)
-
-                        local isEquip = false
-                        for _, w in ipairs(AR2_GUI_EQUIP_WORDS) do
-                            if string.find(txt, w, 1, true) then isEquip = true break end
-                        end
-
-                        local item = AR2_guiItemNameOf(d)
-                        if item then AR2_guiLastItem = item end
-
-                        task.spawn(function()
-                            for _ = 1, 6 do
-                                task.wait(0.05)
-                                if not AR2_CFG.misc.guiUnlock then return end
-                                if not AR2_guiMenuOpen() then return end
-                                pcall(AR2_guiSweep)
-                            end
-                        end)
-
-                        local target = (isEquip and AR2_guiLastItem) or item
-                        if target and (isEquip or AR2_CFG.misc.guiDressOnClick) then
-                            local slot = AR2_guiSlotFor(target)
-                            local ok, why = AR2_cosDress(slot, target,
-                                slot == "Accessory" and 1 or nil)
-                            AR2_guiNote = (ok and "worn " or "failed ")
-                                .. tostring(target) .. " -- " .. tostring(why)
-                        end
+                        pcall(AR2_guiOnClick, d)
                     end)
                 end
             end
@@ -12756,20 +15397,66 @@ function AR2_setGuiUnlock(on)
     AR2_CFG.misc.guiUnlock = on and true or false
 
     if AR2_guiUnlockConn then AR2_guiUnlockConn:Disconnect() AR2_guiUnlockConn = nil end
-    if not AR2_CFG.misc.guiUnlock then return true, "off" end
+    if not AR2_CFG.misc.guiUnlock then
+        for _, c in ipairs(AR2_guiConns or {}) do pcall(function() c:Disconnect() end) end
+        AR2_guiConns = {}
+        return true, "off"
+    end
 
-    -- The menu-open check gated everything: when AR2_guiMenuOpen failed to
-    -- recognise the menu, the sweep never ran and the unlocker looked broken.
-    -- Sweeping unconditionally at the same 0.3s throttle costs nothing when
-    -- the menu is closed -- there is simply nothing to find.
-    local nextAt = 0
-    AR2_guiUnlockConn = AR2_RunService.Heartbeat:Connect(function()
+    -- EVENT DRIVEN, NOT A LOOP.
+    -- This used to re-walk every descendant of every matching ScreenGui three
+    -- times a second, forever, whether a menu was open or not -- up to 30k
+    -- instances a pass. That is a real frame cost for work that only needs
+    -- doing when something new appears.
+    --
+    -- Instead: unlock once now, then listen. A tile that did not exist cannot
+    -- be locked, so the only moments that matter are a new descendant arriving
+    -- or a menu being switched on.
+    AR2_guiConns = AR2_guiConns or {}
+    for _, c in ipairs(AR2_guiConns) do pcall(function() c:Disconnect() end) end
+    AR2_guiConns = {}
+
+    local pending, scheduled = {}, false
+    local function flush()
+        scheduled = false
         if not AR2_CFG.misc.guiUnlock then return end
-        local now = os.clock()
-        if now < nextAt then return end
-        nextAt = now + 0.3
-        pcall(AR2_guiSweep)
-    end)
+        local batch = pending
+        pending = {}
+        for _, d in ipairs(batch) do
+            if d.Parent then pcall(AR2_guiUnlockOne, d) end
+        end
+    end
+    local function queue(d)
+        if not AR2_CFG.misc.guiUnlock then return end
+        pending[#pending + 1] = d
+        if not scheduled then
+            -- coalesce: a menu opening adds hundreds of elements in one frame
+            scheduled = true
+            task.defer(flush)
+        end
+    end
+
+    local pg = AR2_LocalPlayer:FindFirstChild("PlayerGui")
+    if pg then
+        AR2_guiConns[#AR2_guiConns + 1] = pg.DescendantAdded:Connect(queue)
+        AR2_guiConns[#AR2_guiConns + 1] = pg.ChildAdded:Connect(function(g)
+            if g:IsA("ScreenGui") then
+                task.defer(function() pcall(AR2_guiSweep) end)
+            end
+        end)
+        -- a menu being enabled reveals already-built tiles, which no
+        -- DescendantAdded will ever fire for
+        for _, g in ipairs(pg:GetChildren()) do
+            if g:IsA("ScreenGui") then
+                AR2_guiConns[#AR2_guiConns + 1] =
+                    g:GetPropertyChangedSignal("Enabled"):Connect(function()
+                        if g.Enabled then
+                            task.defer(function() pcall(AR2_guiSweep) end)
+                        end
+                    end)
+            end
+        end
+    end
 
     pcall(AR2_guiSweep)
     return true, ("%d buttons, %d locks hidden")
@@ -13172,6 +15859,29 @@ function AR2_tpTravelTo(destPos, label)
     AR2_tpTravel.dest   = destPos
     AR2_tpTravel.note   = "travelling to " .. tostring(label or "target")
     AR2_tpTravel.active = true
+
+    -- Instant skips the whole flight: no fly, no anchor, no per-frame steps.
+    if AR2_CFG.tp.instant then
+        local frames = math.clamp(tonumber(AR2_CFG.tp.instantFrames) or 3, 0, 30)
+        task.spawn(function()
+            for i = 0, frames do
+                if not AR2_tpTravel.active then break end
+                local c = AR2_LocalPlayer.Character
+                local r = c and c:FindFirstChild("HumanoidRootPart")
+                if not r then break end
+                pcall(function()
+                    r.AssemblyLinearVelocity  = Vector3.zero
+                    r.AssemblyAngularVelocity = Vector3.zero
+                    r.CFrame = CFrame.new(AR2_tpTravel.dest)
+                end)
+                if i < frames then AR2_RunService.Heartbeat:Wait() end
+            end
+            if AR2_CFG.misc.autoResume then pcall(AR2_legalResume, 0.3) end
+            AR2_tpTravel.active = false
+            AR2_tpTravel.note   = "arrived (instant)"
+        end)
+        return true, "instant"
+    end
 
     task.spawn(function()
         local wasFly = AR2_CFG.misc.fly
@@ -13651,6 +16361,40 @@ function AR2_tp.run(getGoal, label, keepGoing)
         AR2_tp.writes, AR2_tp.attempt, AR2_tp.pulls, AR2_tp.hops = 0, 0, 0, 0
         local started = os.clock()
         AR2_tpUnseat()
+
+        -- INSTANT: one write, then a couple of re-asserts. The re-asserts are
+        -- not padding -- the server's own position correction can drag you
+        -- back on the very next frame, and a single write loses that race.
+        -- Everything else here (chunking, hops, retries, hold) exists to be
+        -- gentle, which is exactly what instant is giving up.
+        if c.instant and not keepGoing then
+            AR2_tp.phase = "INSTANT"
+            local root = AR2_tpRoot()
+            local goal = root and getGoal() or nil
+            if root and goal then
+                AR2_tpWrite(root, goal)
+                AR2_tp.writes = 1
+                local frames = math.clamp(tonumber(c.instantFrames) or 3, 0, 30)
+                for _ = 1, frames do
+                    if not AR2_tpAlive(mine) then break end
+                    AR2_RunService.Heartbeat:Wait()
+                    local r2 = AR2_tpRoot()
+                    local g2 = getGoal()
+                    if r2 and g2 then
+                        AR2_tpWrite(r2, g2)
+                        AR2_tp.writes = AR2_tp.writes + 1
+                    end
+                end
+                AR2_tpRelease()
+                AR2_tp.lastResult = ("%s -- INSTANT (%d writes, %.0f ms)")
+                    :format(label, AR2_tp.writes, (os.clock() - started) * 1000)
+            else
+                AR2_tpRelease()
+                AR2_tp.lastResult = label .. " -- no destination"
+            end
+            AR2_tp.busy, AR2_tp.phase = false, "idle"
+            return
+        end
         if c.guard then
             AR2_tpGuard.install()
             AR2_tpGuard.blocked = 0
@@ -13744,12 +16488,16 @@ function AR2_tp.plain()
     c.chunked, c.hopStuds = true, 200
     c.guard, c.force, c.underground = false, false, false
     c.follow = false
+    -- deliberately NOT touching c.instant: "back to original method" is about
+    -- the chunking profile, and silently undoing the user's instant toggle
+    -- from an unrelated button is the kind of thing that reads as a bug
     AR2_tp.stop()
     AR2_tpGuard.active = false
     AR2_tp.lastResult = "settings back to original method"
 end
 
 function AR2_tp.toPosition(position, label)
+    pcall(function() if AR2_flyKick then AR2_flyKick(0.8) end end)
     AR2_tp.run(function() return CFrame.new(position) end, label)
 end
 
@@ -14661,6 +17409,23 @@ function AR2_carNoclipTP.run(goalPosition, label)
         local maxSecs = math.max(2, AR2_CFG.car.noclipTPMaxSeconds or 15)
         local deadline = os.clock() + maxSecs
         local reached = false
+
+        -- Instant still goes through noclip and MoveTo, so the whole rig and
+        -- the seated character travel together; only the flight is skipped.
+        if AR2_CFG.tp.instant then
+            local r = AR2_carNoclipRoot
+            if r and r.Parent then
+                local baseCF = r.CFrame - r.CFrame.Position
+                AR2_carNoclipTPMoveTo(CFrame.new(goal) * baseCF)
+                AR2_RunService.Heartbeat:Wait()
+                if AR2_carNoclipRoot and AR2_carNoclipRoot.Parent then
+                    local r2 = AR2_carNoclipRoot
+                    AR2_carNoclipTPMoveTo(CFrame.new(goal) * (r2.CFrame - r2.CFrame.Position))
+                end
+                reached = true
+            end
+            deadline = 0
+        end
 
         while os.clock() < deadline do
             if AR2_carNoclipTP.cancel or AR2_carNoclipTP.gen ~= mine then break end
@@ -16352,6 +19117,19 @@ local AR2_flyLastPos      = nil
 local AR2_flySnapSlowdown = 1.0
 local AR2_flySnapCount    = 0
 local AR2_flyRevalidating = false
+AR2_flyGraceUntil = 0
+
+-- A teleport while fly sat in its revalidation hold was swallowed: that
+-- branch returns early every frame, overwriting the new position before it
+-- could take. Any deliberate reposition clears the hold first.
+function AR2_flyKick(seconds)
+    AR2_flyRevalidating = false
+    AR2_flyRevalUntil   = 0
+    AR2_flySnapCount    = 0
+    AR2_flySnapSlowdown = 1.0
+    AR2_flyGraceUntil   = os.clock() + (seconds or 0.8)
+    AR2_flyLastPos      = nil
+end
 local AR2_flyRevalUntil   = 0
 local AR2_flyBurstFrame   = 0
 local AR2_noFallConn      = nil
@@ -16465,6 +19243,18 @@ function AR2_startFly()
         hum:ChangeState(Enum.HumanoidStateType.Freefall)
     end)
 
+    -- THE 8-SECOND TAKEOFF.
+    --
+    -- The snapback detector calls it a server rejection whenever the body
+    -- moves slower than commanded. On the first frames of fly the body is
+    -- still against the floor, so collision looks exactly like a snapback:
+    -- slowdown collapses to 0.15, the counter hits its limit, and the fly
+    -- enters a deliberate "revalidate" pause. That cycle repeats until the
+    -- body finally clears the ground, which is the delay being felt.
+    --
+    -- A short grace window on takeoff fixes it: no snap detection until the
+    -- body has had time to get clear.
+    AR2_flyGraceUntil   = os.clock() + 1.25
     AR2_flyLastPos      = root.Position
     AR2_flyVel          = Vector3.zero
     AR2_flySnapSlowdown = 1.0
@@ -16497,18 +19287,35 @@ function AR2_startFly()
                 return
             else
                 AR2_flyRevalidating = false
-                AR2_flySnapSlowdown = 0.4
+                AR2_flySnapSlowdown = 0.7
                 AR2_flyVel          = Vector3.zero
             end
         end
 
-        if dt > 0.1 then
+        if os.clock() < (AR2_flyGraceUntil or 0) then
+            -- climbing out: hold full speed and do not judge anything yet
+            AR2_flySnapSlowdown = 1.0
+            AR2_flySnapCount    = 0
+            AR2_flyLastPos      = r.Position
+        elseif dt > 0.1 then
             AR2_flyLastPos = r.Position
         elseif AR2_flyLastPos then
             local actualSpeed   = (r.Position - AR2_flyLastPos).Magnitude / math.max(dt, 0.001)
             local expectedSpeed = AR2_flyVel.Magnitude
-            if expectedSpeed > 15 and actualSpeed < expectedSpeed * 0.25 then
-                AR2_flySnapSlowdown = math.max(0.15, AR2_flySnapSlowdown - 0.2)
+
+            -- if something solid is right where we are trying to go, the
+            -- body being slow is geometry, not the server
+            local blocked = false
+            if expectedSpeed > 15 and AR2_flyVel.Magnitude > 0 then
+                local rp2 = RaycastParams.new()
+                rp2.FilterType = Enum.RaycastFilterType.Exclude
+                rp2.FilterDescendantsInstances = { AR2_LocalPlayer.Character }
+                rp2.IgnoreWater = true
+                blocked = AR2_Workspace:Raycast(r.Position, AR2_flyVel.Unit * 6, rp2) ~= nil
+            end
+
+            if (not blocked) and expectedSpeed > 15 and actualSpeed < expectedSpeed * 0.25 then
+                AR2_flySnapSlowdown = math.max(0.35, AR2_flySnapSlowdown - 0.1)
                 AR2_flySnapCount    = AR2_flySnapCount + 1
                 if AR2_flySnapCount >= AR2_FLY_SNAP_LIMIT then
                     AR2_flyRevalidating = true
@@ -16519,7 +19326,7 @@ function AR2_startFly()
                     return
                 end
             else
-                AR2_flySnapSlowdown = math.min(1.0, AR2_flySnapSlowdown + 0.025)
+                AR2_flySnapSlowdown = math.min(1.0, AR2_flySnapSlowdown + 0.08)
                 if AR2_flySnapCount > 0 then AR2_flySnapCount = AR2_flySnapCount - 1 end
             end
         end
@@ -19551,7 +22358,22 @@ function AR2_buildUI()
             local elem=lbl:AddToggle({
                 Default=cfgTable[cfgKey] or false,
                 Flag=stableFlag(cfgTable,cfgKey,label),
-                Callback=function(v) cfgTable[cfgKey]=v if AR2_uiSyncing then return end if callback then callback(v) end end,
+                -- pcall: the library fires this during the initial build, before
+                -- AR2_uiSyncing is set, so a callback that touches Instances or
+                -- yields can throw on a restricted thread and kill the ENTIRE UI
+                -- build ("lacking capability Plugin"). One toggle must not be
+                -- able to do that.
+                Callback=function(v)
+                    cfgTable[cfgKey]=v
+                    if AR2_uiSyncing then return end
+                    if callback then
+                        local ok, err = pcall(callback, v)
+                        if not ok then
+                            warn("[DROIDWARE] toggle '" .. tostring(label)
+                                 .. "' callback error: " .. tostring(err))
+                        end
+                    end
+                end,
             })
             if bindName then pcall(attachKeybind, lbl, label, bindName) end
             storeElement({getter=function() return cfgTable[cfgKey] end,setter=function(val) applyElemState(elem,val) end})
@@ -19567,7 +22389,17 @@ function AR2_buildUI()
             local elem=section:AddLabel(label):AddSlider({
                 Min=min,Max=max,Default=def,Rounding=rounding,
                 Flag=stableFlag(cfgTable,cfgKey,label),
-                Callback=function(v) cfgTable[cfgKey]=v if AR2_uiSyncing then return end if callback then callback(v) end end,
+                Callback=function(v)
+                    cfgTable[cfgKey]=v
+                    if AR2_uiSyncing then return end
+                    if callback then
+                        local ok, err = pcall(callback, v)
+                        if not ok then
+                            warn("[DROIDWARE] slider '" .. tostring(label)
+                                 .. "' callback error: " .. tostring(err))
+                        end
+                    end
+                end,
             })
             storeElement({getter=function() return cfgTable[cfgKey] end,setter=function(val) applyElemState(elem,val) end})
             return elem
@@ -19788,14 +22620,28 @@ function AR2_buildUI()
         addToggle(lootSection,"Enabled",AR2_CFG.loot,"on",function(v) AR2_esp.update() end)
         addSlider(lootSection,"Max Distance",AR2_CFG.loot,"maxDist",100,5000)
         addSlider(lootSection,"Min Rank",AR2_CFG.loot,"minRank",0,5)
+        lootSection:AddLabel("A crate's values are its loot TABLE, not contents")
+        addToggle(lootSection,"Rank Only From Filled Slots",AR2_CFG.loot,"rankFilledOnly")
+        addToggle(lootSection,"Mark Empty Containers",AR2_CFG.loot,"markEmpty")
+        addToggle(lootSection,"Hide Empty Containers",AR2_CFG.loot,"hideEmpty")
+        addToggle(lootSection,"Show Table Contents",AR2_CFG.loot,"showNodes")
+        addSlider(lootSection,"  └ Entries Shown",AR2_CFG.loot,"nodeCount",1,6,1)
 
         local zombieSection = espTab:AddSection({Name="Zombie ESP",Position="right"})
         addToggle(zombieSection,"Enabled",AR2_CFG.zombies,"on",function(v) AR2_esp.update() end)
         addToggle(zombieSection,"Game Names",AR2_CFG.zombies,"displayName")
         addToggle(zombieSection,"Corpse Drops",AR2_CFG.zombies,"drops")
-        addSlider(zombieSection,"  └ Drops Range",AR2_CFG.zombies,"dropsDist",50,600,10)
+        addSlider(zombieSection,"  └ Drops Range",AR2_CFG.zombies,"dropsDist",50,2500,50)
         addToggle(zombieSection,"Threat Level",AR2_CFG.zombies,"threat")
         addToggle(zombieSection,"Stun Warning",AR2_CFG.zombies,"canStun")
+        addToggle(zombieSection,"Drops Panel",AR2_CFG.zombies,"dropsPanel",function(v)
+            if not v then pcall(AR2_dropPanelHide) pcall(AR2_zPanelsHide) end
+        end)
+        addSlider(zombieSection,"  └ Rare Drop Below",AR2_CFG.zombies,"rareDropBelow",0.01,1,0.01)
+        addSlider(zombieSection,"  └ Max Panels On Screen",AR2_CFG.zombies,"panelMax",1,14,1)
+        addSlider(zombieSection,"  └ Drops Per Panel",AR2_CFG.zombies,"panelRows",1,10,1)
+        addToggle(zombieSection,"Special Zombie Text",AR2_CFG.zombies,"specialText")
+        addToggle(zombieSection,"  └ Treat Event/Unique As Special",AR2_CFG.zombies,"markEvent")
         addToggle(zombieSection,"Mark Rares",AR2_CFG.zombies,"markRare")
         addSlider(zombieSection,"  └ Rare Below",AR2_CFG.zombies,"rareBelow",0.05,1,0.05)
         zombieSection:AddButton({Name="Inspect Aimed Zombie",Callback=function()
@@ -19959,6 +22805,54 @@ function AR2_buildUI()
         addToggle(zombieSection,"Skeleton",AR2_CFG.zombies,"skeleton",function() end)
         addSlider(zombieSection,"Max Distance",AR2_CFG.zombies,"maxDist",100,3000)
 
+        local itemSection = espTab:AddSection({Name="Ground Items"})
+        itemSection:AddLabel("Dropped items + cosmetics lying on the floor")
+        addToggle(itemSection,"Enabled",AR2_CFG.items,"on",function(v) AR2_esp.update() end)
+        addToggle(itemSection,"Box",AR2_CFG.items,"box")
+        addToggle(itemSection,"Name",AR2_CFG.items,"name")
+        addToggle(itemSection,"Distance",AR2_CFG.items,"dist")
+        addToggle(itemSection,"Tracer",AR2_CFG.items,"tracer")
+        addSlider(itemSection,"Max Distance",AR2_CFG.items,"maxDist",100,4000,50)
+        itemSection:AddButton({Name="Dump Nearest Ground Item",Callback=function()
+            local l = AR2_api.groundItems()
+            local e = l[1]
+            if not e then
+                AR2_notify("no ground items found", 4)
+                print("[DROIDWARE] ItemNodeBin folder: " ..
+                      tostring(AR2_resolveItemBin() and "found" or "MISSING"))
+                return
+            end
+            local lines = {
+                "== NEAREST GROUND ITEM ==",
+                ("  path:      %s"):format(e.model:GetFullName()),
+                ("  name:      %s   (from %s)"):format(tostring(e.name), tostring(e.nameFrom)),
+                ("  distance:  %.0f studs"):format(e.distance),
+                ("  total on ground: %d"):format(#l),
+                "",
+                "  ATTRIBUTES:",
+            }
+            local at
+            pcall(function() at = e.model:GetAttributes() end)
+            if type(at) == "table" then
+                for k, v in pairs(at) do
+                    lines[#lines+1] = ("    %-22s %s = %s"):format(tostring(k), type(v), tostring(v))
+                end
+            end
+            lines[#lines+1] = "  DESCENDANTS:"
+            for _, d in ipairs(e.model:GetDescendants()) do
+                local extra = ""
+                if d:IsA("ValueBase") then
+                    local ok, vv = pcall(function() return d.Value end)
+                    extra = "  = " .. (ok and tostring(vv) or "?")
+                end
+                lines[#lines+1] = ("    %-28s %-14s%s"):format(d.Name:sub(1,28), d.ClassName, extra)
+            end
+            local t = table.concat(lines, "\n")
+            print(t)
+            pcall(function() (setclipboard or toclipboard)(t) end)
+            AR2_notify("ground item dumped + copied", 5)
+        end})
+
         local vehicleSection = espTab:AddSection({Name="Vehicle ESP"})
         addToggle(vehicleSection,"Enabled",AR2_CFG.vehicles,"on",function(v) AR2_esp.update() end)
         addSlider(vehicleSection,"Max Distance",AR2_CFG.vehicles,"maxDist",100,5000)
@@ -20052,7 +22946,99 @@ function AR2_buildUI()
         addSlider(rageBotSection,"Max Distance",AR2_CFG.rageBot,"maxDist",50,2000,function(v) AR2_CFG.rageBot.maxDist=v end)
         addToggle(rageBotSection,"360 / Worldwide",AR2_CFG.rageBot,"ignoreFov",function(v) AR2_toggleRageBotWorldwide(v) end)
         addToggle(rageBotSection,"Visible Only (Raycast)",AR2_CFG.rageBot,"visCheck")
-        addToggle(rageBotSection,"Shoot From Inventory",AR2_CFG.rageBot,"inventoryShoot",function(v) AR2_toggleRageBotInventoryShoot(v) end)
+        addToggle(rageBotSection,"Origin Adjust (shift muzzle past cover)",AR2_CFG.rageBot,"originAdjust")
+        addSlider(rageBotSection,"Rage Pen Budget (studs)",AR2_CFG.rageBot,"penBudget",0,12,1)
+        rageBotSection:AddLabel("Rage pen is separate from the weapon wallbang")
+        rageBotSection:AddLabel("budget, so widening one no longer makes the bot")
+        rageBotSection:AddLabel("take shots the bullet cannot actually make.")
+        addSlider(rageBotSection,"Min Fire Interval (s)",AR2_CFG.rageBot,"minInterval",0.05,0.5,0.01)
+        addSlider(rageBotSection,"  └ Fallback If Rate Unknown",AR2_CFG.rageBot,"safeInterval",0.1,1,0.05)
+        rageBotSection:AddButton({Name="Fire Path / Spread Status",Callback=function()
+            local fired = AR2_rageShotsFired or 0
+            local comped = AR2_rageCompShots or 0
+            local t = table.concat({
+                "== RAGE FIRE PATH ==",
+                ("  hook installed   : %s"):format(
+                    tostring(AR2_Bullets and AR2_Bullets.Fire ~= AR2_originalFireFunction)),
+                ("  last shot used it: %s"):format(tostring(AR2_rageUsedHook)),
+                ("  spreadComp on    : %s"):format(tostring(AR2_CFG.weapon.spreadComp)),
+                ("  serverTime hook  : %s"):format(tostring(AR2_stHookInstalled == true)),
+                ("  rage shots fired : %d"):format(fired),
+                ("  of those, comped : %d%s"):format(comped,
+                    (fired > 0 and comped == 0)
+                        and "   <-- FIRING RAW, shots will scatter" or ""),
+                ("  pen budget       : %s studs"):format(tostring(AR2_CFG.weapon.penBudget)),
+                ("  rpm boost        : %.2f  %s"):format(
+                    tonumber(AR2_CFG.rageBot.rpmBoost) or 1,
+                    AR2_CFG.rageBot.burstMode and "(burst+repay)" or "(SUSTAINED -- kicks)"),
+                ("  burst state      : %s"):format(AR2_rageBurstStatus()),
+                ("  fire rate known  : %s%s"):format(tostring(AR2_rageRateKnown),
+                    AR2_rageRateKnown and "" or "   <-- using fallback, gun unidentified"),
+                ("  interval now     : %.3fs"):format(AR2_rageInterval()),
+                ("  rage pen budget  : %s studs"):format(tostring(AR2_CFG.rageBot.penBudget)),
+                ("  vis check        : %s%s"):format(
+                    tostring(AR2_CFG.rageBot.visCheck),
+                    AR2_CFG.weapon.penUnlimited and "  (BYPASSED: pen unlimited)" or ""),
+                ("  paths accepted   : %d    rejected: %d")
+                    :format(AR2_pathAccepts or 0, AR2_pathRejects or 0),
+                ("  last path verdict: %s"):format(tostring(AR2_lastPathWhy)),
+                ("  last blocker     : %s"):format(tostring(AR2_lastPathBlocker)),
+                ("  inv %s"):format(AR2_invAmmoStatus()),
+                ("  origin adjust    : %s  (%d shifts)"):format(
+                    tostring(AR2_CFG.rageBot.originAdjust), AR2_rageOriginShifts or 0),
+                "",
+                "== SPREAD ==",
+                AR2_spreadStatusText(),
+            }, "\n")
+            print(t)
+            pcall(function() (setclipboard or toclipboard)(t) end)
+            AR2_notify("fire path status copied", 5)
+        end})
+        rageBotSection:AddButton({Name="Reset Spread Stats",Callback=function()
+            AR2_spreadResetStats()
+            AR2_rageShotsFired, AR2_rageCompShots = 0, 0
+            AR2_notify("spread stats reset", 3)
+        end})
+        addToggle(rageBotSection,"Shoot From Inventory",AR2_CFG.rageBot,"inventoryShoot",function(v)
+            AR2_toggleRageBotInventoryShoot(v)
+            AR2_invAmmoReset()
+        end)
+        addToggle(rageBotSection,"  └ Track Ammo / Stop At Empty",AR2_CFG.rageBot,"trackAmmo")
+        addToggle(rageBotSection,"  └ Auto Reload When Empty",AR2_CFG.rageBot,"autoReloadInv")
+        rageBotSection:AddButton({Name="Reset Ammo Count",Callback=function()
+            AR2_invAmmoReset()
+            AR2_notify(AR2_invAmmoStatus(), 6)
+        end})
+        rageBotSection:AddButton({Name="Dump Ammo Fields",Callback=function()
+            AR2_ammoDump()
+            AR2_notify("ammo fields copied", 5)
+        end})
+        rageBotSection:AddButton({Name="Dump: Equip Message",Callback=function()
+            local lines = { "== CAPTURED EQUIP / ITEM SENDS ==",
+                "  (turn Cosmetics > Recon > Learn Mode on, then equip a gun)" }
+            for _, l in ipairs(AR2_cosEquipLog or {}) do lines[#lines+1] = "  " .. tostring(l) end
+            if #(AR2_cosEquipLog or {}) == 0 then
+                lines[#lines+1] = "  (nothing captured yet)"
+            end
+            local t = table.concat(lines, "\n")
+            print(t)
+            pcall(function() (setclipboard or toclipboard)(t) end)
+            AR2_notify("equip sends copied", 5)
+        end})
+        local rpmLbl = rageBotSection:AddLabel("rpm -")
+        task.spawn(function()
+            local gen = AR2_uiGeneration
+            while gen == AR2_uiGeneration do
+                pcall(function()
+                    local sent, reg = AR2_shotsSent or 0, AR2_shotsReg or 0
+                    local drop = (sent > 0) and (100 - (reg / sent * 100)) or 0
+                    rpmLbl:SetText(("%.0f rpm | sent %d / reg %d (%.0f%% dropped)")
+                        :format(AR2_rpmEffective or 0, sent, reg, drop))
+                end)
+                task.wait(0.5)
+            end
+        end)
+        rageBotSection:AddLabel("Raise boost until dropped%% climbs, then back off")
         addToggle(rageBotSection,"Require ADS",AR2_CFG.rageBot,"requireADS")
         addToggle(rageBotSection,"Force ADS",AR2_CFG.rageBot,"forceADS")
         addSlider(rageBotSection,"ADS Min Distance",AR2_CFG.rageBot,"adsMinDist",0,1000,function(v) AR2_CFG.rageBot.adsMinDist=v end)
@@ -20099,6 +23085,14 @@ function AR2_buildUI()
         end)
 
         addToggle(bulletSection,"Spread Compensation",AR2_CFG.weapon,"spreadComp")
+        addToggle(bulletSection,"Only Unlock Guns That Are Already Auto",
+                  AR2_CFG.weapon,"fireModesSafe",function(v)
+            if not v then
+                AR2_notify("forcing auto on semi guns -- the server knows their "
+                           .. "real fire profile, this is a common kick", 8)
+            end
+            if AR2_CFG.weapon.allFireModes then pcall(AR2_applyAllFireModes, true) end
+        end)
         pcall(function()
         end)
         addToggle(bulletSection,"Steady Shot While Flying (CAN KICK)",AR2_CFG.weapon,"spreadFlySteady")
@@ -20259,7 +23253,11 @@ function AR2_buildUI()
         local flySection = movementTab:AddSection({Name="Fly",Position="right"})
         addToggle(flySection,"Legal-Speed Reporting (anti-rubberband)",AR2_CFG.misc,"flySmooth",function(v)
             AR2_reportClampReset()
-            if not AR2_netGuardInstalled then AR2_installNetGuard() end
+            -- defined further down the file than this UI block, so during the
+            -- initial build it can still be nil
+            if not AR2_netGuardInstalled and type(AR2_installNetGuard) == "function" then
+                AR2_installNetGuard()
+            end
             AR2_notify(v and "reporting a walk-speed path to the server" or "reporting your real position", 4)
         end)
         addSlider(flySection,"  \u{2514} Reported Speed Cap",AR2_CFG.misc,"flySmoothSpeed",8,120,2)
@@ -20463,6 +23461,13 @@ function AR2_buildUI()
             AR2_tpStopTravel()
             Notif.new({Title="DROIDWARE",Content="Stopped",Duration=3})
         end})
+        playerTPSection:AddLabel("Instant skips the flight on ALL of these:")
+        playerTPSection:AddLabel("player TP, map TP, vehicle TP, travel")
+        addToggle(playerTPSection,"INSTANT TP",AR2_CFG.tp,"instant",function(v)
+            AR2_notify(v and "instant TP on -- one write, no flight"
+                         or  "instant TP off -- back to the gradual path", 4)
+        end)
+        addSlider(playerTPSection,"  └ Re-assert Frames",AR2_CFG.tp,"instantFrames",0,15,1)
         addToggle(playerTPSection,"Use Fly While Travelling",AR2_CFG.tp,"travelFly")
         addToggle(playerTPSection,"Anchor While Travelling",AR2_CFG.tp,"travelAnchor")
         addSlider(playerTPSection,"Travel Speed",AR2_CFG.tp,"travelSpeed",100,30000,250)
@@ -20581,6 +23586,59 @@ function AR2_buildUI()
         addToggle(radarSection,"Names",AR2_CFG.radar,"names")
         addToggle(radarSection,"Include Self",AR2_CFG.radar,"localToo")
         addToggle(radarSection,"Armed Color",AR2_CFG.radar,"armedColor")
+        addSlider(radarSection,"Refresh Rate (Hz)",AR2_CFG.radar,"hz",2,60,1)
+        addToggle(radarSection,"Avatar Icons",AR2_CFG.radar,"avatars")
+        addSlider(radarSection,"  └ Icon Size",AR2_CFG.radar,"avatarSize",10,48,1)
+
+        local eventSection = radarTab:AddSection({Name="Random Event Radar"})
+        eventSection:AddLabel("Clusters of unique/event zombies + quest nodes")
+        addToggle(eventSection,"Enabled",AR2_CFG.events,"on")
+        addToggle(eventSection,"Named Events (Operator Crash etc)",AR2_CFG.events,"named")
+        addToggle(eventSection,"Zombie Clusters",AR2_CFG.events,"zombieClusters")
+        addSlider(eventSection,"  └ Cluster Radius",AR2_CFG.events,"clusterRadius",50,600,10)
+        addSlider(eventSection,"  └ Min Zombies",AR2_CFG.events,"minZombies",1,10,1)
+        addToggle(eventSection,"Quest / Spawner Nodes",AR2_CFG.events,"tagged")
+        addToggle(eventSection,"Names",AR2_CFG.events,"names")
+        addSlider(eventSection,"Range",AR2_CFG.events,"range",1000,12000,250)
+        addToggle(eventSection,"World ESP Too",AR2_CFG.events,"esp",function(v) AR2_esp.update() end)
+        eventSection:AddButton({Name="Dump: Known Event Names",Callback=function()
+            local names = AR2_eventGroupNames(true)
+            local lines = { "== EVENT NAMES ==",
+                ("  source: %s"):format(tostring(AR2_eventNamesFrom)) }
+            for _, n in ipairs(names) do lines[#lines+1] = "  " .. n end
+            if #names == 0 then lines[#lines+1] = "  (none found)" end
+            local t = table.concat(lines, "\n")
+            print(t)
+            pcall(function() (setclipboard or toclipboard)(t) end)
+            AR2_notify(("%d event names"):format(#names), 5)
+        end})
+        eventSection:AddButton({Name="List Events Now",Callback=function()
+            local l = AR2_api.events()
+            local lines = { ("== EVENTS (%d) =="):format(#l) }
+            for i, e in ipairs(l) do
+                if i <= 25 then
+                    lines[#lines+1] = ("  %-34s %-22s %5.0f studs")
+                        :format(tostring(e.label):sub(1,34), tostring(e.why), e.distance)
+                end
+            end
+            if #l == 0 then
+                lines[#lines+1] = "  none right now."
+                lines[#lines+1] = "  Lower Min Zombies to 1 to see every unique on its own."
+            end
+            local t = table.concat(lines, "\n")
+            print(t)
+            pcall(function() (setclipboard or toclipboard)(t) end)
+            AR2_notify(("%d events"):format(#l), 5)
+        end})
+
+        local radarZSection = radarTab:AddSection({Name="Radar Zombies"})
+        radarZSection:AddLabel("Full map only -- the minimap is too small for these")
+        addToggle(radarZSection,"Enabled",AR2_CFG.radar.zombies,"on")
+        addToggle(radarZSection,"Rare Only",AR2_CFG.radar.zombies,"rareOnly")
+        addToggle(radarZSection,"Events Only (gold)",AR2_CFG.radar.zombies,"eventsOnly")
+        addToggle(radarZSection,"Names",AR2_CFG.radar.zombies,"names")
+        addSlider(radarZSection,"Range",AR2_CFG.radar.zombies,"range",500,10000,100)
+        addSlider(radarZSection,"Max Drawn",AR2_CFG.radar.zombies,"max",10,150,5)
         addToggle(radarSection,"Show Weapon",AR2_CFG.radar,"weapon",function(v) AR2_CFG.radar.weapon=v end)
         addToggle(radarSection,"Show Distance",AR2_CFG.radar,"dist",function(v) AR2_CFG.radar.dist=v end)
         local radarVehicleSection = radarTab:AddSection({Name="Radar Vehicles",Position="right"})
@@ -20594,7 +23652,15 @@ function AR2_buildUI()
         local minimapSection = radarTab:AddSection({Name="Minimap",Position="right"})
         addToggle(minimapSection,"Enabled",AR2_CFG.minimap,"on",function(v) AR2_minimapEnabled=v AR2_minimapUpdate() AR2_updateMinimap() end)
         addSlider(minimapSection,"Size",AR2_CFG.minimap,"size",100,600,function(v) AR2_updateMinimap() end)
+        addSlider(minimapSection,"Refresh Rate (Hz)",AR2_CFG.minimap,"hz",2,60,1)
         addSlider(minimapSection,"Border Thickness",AR2_CFG.minimap,"border",0,6,1,function(v) AR2_updateMinimap() end)
+        addToggle(minimapSection,"Avatar Icons",AR2_CFG.minimap,"avatars",function(v) AR2_updateMinimap() end)
+        addSlider(minimapSection,"  └ Icon Size",AR2_CFG.minimap,"avatarSize",10,34,1,function(v) AR2_updateMinimap() end)
+        addToggle(minimapSection,"Zombie Radar",AR2_CFG.minimap,"zombies",function(v) AR2_updateMinimap() end)
+        addToggle(minimapSection,"  └ Rare Only",AR2_CFG.minimap,"zombiesRareOnly")
+        addToggle(minimapSection,"  └ Events Only (gold blips)",AR2_CFG.minimap,"eventsOnly")
+        minimapSection:AddLabel("Zombies are on the full map by default")
+        addSlider(minimapSection,"  └ Zombie Range",AR2_CFG.minimap,"zombieRange",200,4000,50)
         minimapSection:AddLabel("Drag the map to move it")
         minimapSection:AddButton({Name="Reset Position",Callback=function()
             AR2_CFG.minimap.x, AR2_CFG.minimap.y = 10, 50
@@ -21184,6 +24250,82 @@ function AR2_ownUnlock(on)
     AR2_notify(n > 0
         and ("ownership unlock on -- " .. n .. " gates opened")
         or  "nothing to unlock -- the API was not reachable", 5)
+end
+
+function AR2_purchasesDump()
+    local fw
+    pcall(function() fw = require(AR2_ReplicatedFirst:WaitForChild("Framework", 10)) end)
+    if type(fw) ~= "table" then return "Framework unreachable" end
+    local P = fw.Libraries and fw.Libraries.Purchases
+    if type(P) ~= "table" then return "Purchases library not found" end
+
+    local L = { "== PURCHASES SHAPE ==" }
+    local function show(label, v, depth)
+        local tv = type(v)
+        if tv ~= "table" then
+            L[#L+1] = ("  %-26s %s = %s"):format(label, tv, tostring(v))
+            return
+        end
+        local n = 0
+        L[#L+1] = ("  %-26s table"):format(label)
+        for k, vv in pairs(v) do
+            n = n + 1
+            if n <= 12 then
+                if type(vv) == "table" and (depth or 0) < 1 then
+                    show("    " .. tostring(k), vv, (depth or 0) + 1)
+                else
+                    L[#L+1] = ("      %-22s %s = %s"):format(
+                        tostring(k):sub(1,22), type(vv),
+                        type(vv) == "table" and "{...}" or tostring(vv))
+                end
+            end
+        end
+        if n > 12 then L[#L+1] = ("      ... +%d more"):format(n - 12) end
+        if n == 0 then L[#L+1] = "      (empty)" end
+    end
+
+    -- An empty owned-list tells us nothing about the shape we must match when
+    -- synthesising entries, so probe the config side and the constructors.
+    for _, fn in ipairs({ "GetSkins", "GetPurchases" }) do
+        local ok, res = pcall(function() return P[fn](P) end)
+        if not ok then ok, res = pcall(function() return P[fn]() end) end
+        L[#L+1] = ("  %s() -> ok=%s"):format(fn, tostring(ok))
+        if ok then show(fn .. " result", res) end
+    end
+
+    show("NewWeaponSkin", rawget(P, "NewWeaponSkin"))
+    show("NewPurchase",   rawget(P, "NewPurchase"))
+
+    local names = {}
+    pcall(function()
+        local id = fw.Configs and fw.Configs.ItemData
+        if type(id) == "table" then
+            for k in pairs(id) do
+                names[#names+1] = k
+                if #names >= 6 then break end
+            end
+        end
+    end)
+    L[#L+1] = ""
+    L[#L+1] = "  GetSkinConfig on real ItemData names:"
+    for _, nm in ipairs(names) do
+        local ok, res = pcall(function() return P.GetSkinConfig(P, nm) end)
+        if not ok then ok, res = pcall(function() return P.GetSkinConfig(nm) end) end
+        L[#L+1] = ("    %-40s ok=%s  %s"):format(nm:sub(1,40), tostring(ok), type(res))
+        if ok and type(res) == "table" then show("      cfg", res, 1) end
+    end
+
+    L[#L+1] = ""
+    L[#L+1] = "  ItemData sample entry shape:"
+    pcall(function()
+        local id = fw.Configs and fw.Configs.ItemData
+        for k, v in pairs(id) do show("    " .. tostring(k), v, 1) break end
+    end)
+
+    local txt = table.concat(L, "\n")
+    print(txt)
+    pcall(function() (setclipboard or toclipboard)(txt) end)
+    return txt
 end
 
 function AR2_ownStatus()
@@ -23730,6 +26872,7 @@ function AR2_specSet(on)
 
     if not on then
         if AR2_specConn then pcall(function() AR2_specConn:Disconnect() end) AR2_specConn = nil end
+        pcall(AR2_minimapSuppress, false)
         AR2_specHideDraws()
         AR2_specHudShow(false)
         AR2_specTarget = nil
@@ -23745,6 +26888,7 @@ function AR2_specSet(on)
         return
     end
 
+    if AR2_CFG.misc.specHideMinimap ~= false then pcall(AR2_minimapSuppress, true) end
     AR2_specMakeDraws()
     if not AR2_specTarget then AR2_specStep(1) end
     AR2_specKeysStart()
@@ -24141,185 +27285,6 @@ end
         addToggle(ads3p,"Only While Weapon Equipped", AR2_CFG.misc.thirdPersonADS,"requireWeapon")
         ads3p:AddLabel("Hold RMB to shoulder-aim (conflicts with FOV Zoom)")
 
-        local outlineSection = miscTab:AddSection({Name="Player Outlines"})
-        addToggle(outlineSection,"Enabled",AR2_CFG.misc,"charm",function(v) AR2_toggleCharm(v) end)
-        addDropdown(outlineSection,"Mode",{"Color","BlackWhite"},AR2_CFG.misc,"charmMode",function(v) AR2_setCharmMode(v) end)
-        addSlider(outlineSection,"Hue",AR2_CFG.misc,"charmHue",0,360,function(v) AR2_setCharmHue(v) end)
-        addSlider(outlineSection,"Gray (BlackWhite)",AR2_CFG.misc,"charmGray",0,100,function(v) AR2_setCharmGray(v) end)
-        addToggle(outlineSection,"Rainbow",AR2_CFG.misc,"charmRainbow",function(v) AR2_toggleCharmRainbow(v) end)
-        addToggle(outlineSection,"Global Outline",AR2_CFG.misc,"globalCharm",function(v) AR2_applyCharm(AR2_LocalPlayer.Character) end)
-
-        local personalSection = miscTab:AddSection({Name="Personal Chams",Position="right"})
-        addToggle(personalSection,"Character Appearance",AR2_CFG.misc,"personalCharOn",
-            function(v) AR2_setPersonalCharacter(v,AR2_CFG.misc.personalCharMode,AR2_CFG.misc.personalCharHue,AR2_CFG.misc.personalCharGray,AR2_CFG.misc.personalCharMaterial,AR2_CFG.misc.personalCharRainbow) end)
-        addDropdown(personalSection,"Character Mode",{"Color","BlackWhite"},AR2_CFG.misc,"personalCharMode",
-            function(v) if AR2_CFG.misc.personalCharOn then AR2_setPersonalCharacter(true,v,AR2_CFG.misc.personalCharHue,AR2_CFG.misc.personalCharGray,AR2_CFG.misc.personalCharMaterial,AR2_CFG.misc.personalCharRainbow) end end)
-        addSlider(personalSection,"Character Hue",AR2_CFG.misc,"personalCharHue",0,360,
-            function(v) if AR2_CFG.misc.personalCharOn then AR2_setPersonalCharacter(true,AR2_CFG.misc.personalCharMode,v,AR2_CFG.misc.personalCharGray,AR2_CFG.misc.personalCharMaterial,AR2_CFG.misc.personalCharRainbow) end end)
-        addSlider(personalSection,"Character Gray",AR2_CFG.misc,"personalCharGray",0,100,
-            function(v) if AR2_CFG.misc.personalCharOn then AR2_setPersonalCharacter(true,AR2_CFG.misc.personalCharMode,AR2_CFG.misc.personalCharHue,v,AR2_CFG.misc.personalCharMaterial,AR2_CFG.misc.personalCharRainbow) end end)
-        addDropdown(personalSection,"Character Material",{"ForceField","Neon"},AR2_CFG.misc,"personalCharMaterial",
-            function(v) if AR2_CFG.misc.personalCharOn then AR2_setPersonalCharacter(true,AR2_CFG.misc.personalCharMode,AR2_CFG.misc.personalCharHue,AR2_CFG.misc.personalCharGray,v,AR2_CFG.misc.personalCharRainbow) end end)
-        addToggle(personalSection,"Character Rainbow",AR2_CFG.misc,"personalCharRainbow",
-            function(v) if AR2_CFG.misc.personalCharOn then AR2_setPersonalCharacter(true,AR2_CFG.misc.personalCharMode,AR2_CFG.misc.personalCharHue,AR2_CFG.misc.personalCharGray,AR2_CFG.misc.personalCharMaterial,v) end end)
-        addToggle(personalSection,"Gun Appearance",AR2_CFG.misc,"personalGunOn",
-            function(v) AR2_setPersonalGun(v,AR2_CFG.misc.personalGunMode,AR2_CFG.misc.personalGunHue,AR2_CFG.misc.personalGunGray,AR2_CFG.misc.personalGunMaterial,AR2_CFG.misc.personalGunRainbow) end)
-        addDropdown(personalSection,"Gun Mode",{"Color","BlackWhite"},AR2_CFG.misc,"personalGunMode",
-            function(v) if AR2_CFG.misc.personalGunOn then AR2_setPersonalGun(true,v,AR2_CFG.misc.personalGunHue,AR2_CFG.misc.personalGunGray,AR2_CFG.misc.personalGunMaterial,AR2_CFG.misc.personalGunRainbow) end end)
-        addSlider(personalSection,"Gun Hue",AR2_CFG.misc,"personalGunHue",0,360,
-            function(v) if AR2_CFG.misc.personalGunOn then AR2_setPersonalGun(true,AR2_CFG.misc.personalGunMode,v,AR2_CFG.misc.personalGunGray,AR2_CFG.misc.personalGunMaterial,AR2_CFG.misc.personalGunRainbow) end end)
-        addSlider(personalSection,"Gun Gray",AR2_CFG.misc,"personalGunGray",0,100,
-            function(v) if AR2_CFG.misc.personalGunOn then AR2_setPersonalGun(true,AR2_CFG.misc.personalGunMode,AR2_CFG.misc.personalGunHue,v,AR2_CFG.misc.personalGunMaterial,AR2_CFG.misc.personalGunRainbow) end end)
-        addDropdown(personalSection,"Gun Material",{"Neon","ForceField"},AR2_CFG.misc,"personalGunMaterial",
-            function(v) if AR2_CFG.misc.personalGunOn then AR2_setPersonalGun(true,AR2_CFG.misc.personalGunMode,AR2_CFG.misc.personalGunHue,AR2_CFG.misc.personalGunGray,v,AR2_CFG.misc.personalGunRainbow) end end)
-        addToggle(personalSection,"Gun Rainbow",AR2_CFG.misc,"personalGunRainbow",
-            function(v) if AR2_CFG.misc.personalGunOn then AR2_setPersonalGun(true,AR2_CFG.misc.personalGunMode,AR2_CFG.misc.personalGunHue,AR2_CFG.misc.personalGunGray,AR2_CFG.misc.personalGunMaterial,v) end end)
-
-        local hideSection = miscTab:AddSection({Name="Hide"})
-        addToggle(hideSection,"Hide Player",AR2_CFG.misc,"hidePlayer",function(v) AR2_toggleHidePlayer(v) end)
-        addToggle(hideSection,"Hide Gun",AR2_CFG.misc,"hideGun",function(v) AR2_toggleHideGun(v) end)
-
-
-        local morphSection = miscTab:AddSection({Name="Model Morph"})
-        addDropdown(morphSection,"Preset",{"Custom","Spongebob","Verity","Tung Tung Tung","Gucci Morty","Droid"},AR2_CFG.misc,"morphPreset",function(v)
-            if v == "Spongebob" then AR2_CFG.misc.morphId = "4759134675"
-            elseif v == "Verity" then AR2_CFG.misc.morphId = "140105640267431"
-            elseif v == "Tung Tung Tung" then AR2_CFG.misc.morphId = "138151705692565"
-            elseif v == "Gucci Morty" then AR2_CFG.misc.morphId = "82766930708256"
-            elseif v == "Droid" then AR2_CFG.misc.morphId = "101088259357349" end
-        end)
-        morphSection:AddButton({Name="Set Model ID", Callback=function()
-            AR2_morphPrompt("Model asset ID:", AR2_CFG.misc.morphId or "", function(v)
-                AR2_CFG.misc.morphId = tostring(v or ""):gsub("%D","")
-                AR2_CFG.misc.morphPreset = "Custom"
-            end)
-        end})
-        addToggle(morphSection,"Hide My Character",AR2_CFG.misc,"morphHideSelf",function(v)
-            AR2_refreshHideState()
-        end)
-        morphSection:AddButton({Name="Apply Morph", Callback=function() AR2_applyMorph() end})
-        morphSection:AddButton({Name="Remove Morph", Callback=function() AR2_removeMorph() end})
-
-        local killfeedSection = miscTab:AddSection({Name="Killfeed Name"})
-        addToggle(killfeedSection,"Spoof My Name (everywhere)",AR2_CFG.misc,"killfeedSpoof",function(v)
-            AR2_setNameSpoof(v)
-        end)
-        killfeedSection:AddButton({Name="Set Name", Callback=function()
-            AR2_morphPrompt("Killfeed name:", AR2_CFG.misc.killfeedName or "", function(v)
-                AR2_CFG.misc.killfeedName = tostring(v or "")
-            end)
-        end})
-
-        local enemyMorphSection = miscTab:AddSection({Name="Enemy Morph",Position="right"})
-        addToggle(enemyMorphSection,"Enabled",AR2_CFG.misc,"enemyMorph",function(v) AR2_setEnemyMorph(v) end)
-        addSlider(enemyMorphSection,"Hide Within (studs)",AR2_CFG.misc,"enemyMorphNear",0,120,2)
-        addSlider(enemyMorphSection,"Stop Beyond (studs)",AR2_CFG.misc,"enemyMorphFar",100,3000,50)
-        addToggle(enemyMorphSection,"Don't Hide Real Body",AR2_CFG.misc,"enemyMorphNoHide")
-        addSlider(enemyMorphSection,"Max Morphed Players",AR2_CFG.misc,"enemyMorphMax",1,20,1)
-        addSlider(enemyMorphSection,"Max Parts Per Rig",AR2_CFG.misc,"enemyMorphPartCap",10,300,10)
-        addDropdown(enemyMorphSection,"Preset",{"Custom","Spongebob","Verity","Tung Tung Tung","Gucci Morty","Droid"},AR2_CFG.misc,"enemyMorphPreset",function(v)
-            if v == "Spongebob" then AR2_CFG.misc.enemyMorphId = "4759134675"
-            elseif v == "Verity" then AR2_CFG.misc.enemyMorphId = "140105640267431"
-            elseif v == "Tung Tung Tung" then AR2_CFG.misc.enemyMorphId = "138151705692565"
-            elseif v == "Gucci Morty" then AR2_CFG.misc.enemyMorphId = "82766930708256"
-            elseif v == "Droid" then AR2_CFG.misc.enemyMorphId = "101088259357349" end
-            if AR2_CFG.misc.enemyMorph then
-                AR2_setEnemyMorph(false)
-                AR2_setEnemyMorph(true)
-            end
-        end)
-        enemyMorphSection:AddButton({Name="Set Model ID", Callback=function()
-            AR2_morphPrompt("Enemy model asset ID:", AR2_CFG.misc.enemyMorphId or "", function(v)
-                AR2_CFG.misc.enemyMorphId = tostring(v or ""):gsub("%D","")
-                AR2_CFG.misc.enemyMorphPreset = "Custom"
-                if AR2_CFG.misc.enemyMorph then
-                    AR2_setEnemyMorph(false)
-                    AR2_setEnemyMorph(true)
-                end
-            end)
-        end})
-        addToggle(enemyMorphSection,"Hide Their Real Body",AR2_CFG.misc,"enemyMorphHide",function(v)
-            if AR2_CFG.misc.enemyMorph then
-                AR2_setEnemyMorph(false)
-                AR2_setEnemyMorph(true)
-            end
-        end)
-        enemyMorphSection:AddButton({Name="Clear All", Callback=function() pcall(AR2_enemyMorphClearAll) end})
-
-
-        local mvSection = miscTab:AddSection({Name="Vault & Interact",Position="right"})
-        addToggle(mvSection,"Long Interact",AR2_CFG.misc,"interactFar")
-        addToggle(mvSection,"Interact Through Walls",AR2_CFG.misc,"interactXray")
-        addToggle(mvSection,"Long Vault",AR2_CFG.misc,"vaultFar",function(v)
-            pcall(AR2_mvApplyVault)
-        end)
-        addToggle(mvSection,"Vault Anything",AR2_CFG.misc,"vaultAny")
-
-
-        mvSection:AddButton({Name="Max Out Range",Callback=function()
-            AR2_CFG.misc.interactRange = 400
-            AR2_CFG.misc.interactMult  = 10
-            AR2_CFG.misc.vaultMult     = 8
-            AR2_CFG.misc.vaultRadius   = 150
-            AR2_CFG.misc.interactFar   = true
-            AR2_CFG.misc.vaultFar      = true
-            AR2_CFG.misc.interactXray  = true
-            AR2_CFG.misc.vaultAny      = true
-            pcall(AR2_mvApplyVault)
-            pcall(function() if AR2_refreshUI then AR2_refreshUI() end end)
-            AR2_notify("maxed: interact 400s x10, vault x8 / 150s radius, xray + vault-anything on", 5)
-        end})
-
-        mvSection:AddButton({Name="Reset To Normal",Callback=function()
-            AR2_CFG.misc.interactRange = 120
-            AR2_CFG.misc.interactMult  = 1
-            AR2_CFG.misc.vaultMult     = 1
-            AR2_CFG.misc.vaultRadius   = 40
-            AR2_CFG.misc.interactFar   = false
-            AR2_CFG.misc.vaultFar      = false
-            AR2_CFG.misc.interactXray  = false
-            AR2_CFG.misc.vaultAny      = false
-            pcall(AR2_mvApplyVault)
-            pcall(AR2_mvReleaseAll)
-            pcall(function() if AR2_refreshUI then AR2_refreshUI() end end)
-            AR2_notify("interact + vault back to the game's normal values", 4)
-        end})
-        mvSection:AddButton({
-            Name = "Release All Tags",
-            Callback = function()
-                local ok,why = AR2_mvReleaseAll()
-                Notif.new({Title="DROIDWARE",Content=tostring(why),Duration=4})
-            end,
-        })
-
-        local combatLogSection = miscTab:AddSection({Name="Combat Log"})
-        addToggle(combatLogSection,"Clear Combat Lock",AR2_CFG.misc,"combatLog",function(v) AR2_combatLogSet(v) end,"combatLog")
-        combatLogSection:AddLabel("Unlocks the client's leave button only")
-
-        local perfSection = miscTab:AddSection({Name="Performance Check"})
-        perfSection:AddButton({Name="Perf: Report",Callback=function()
-            local t = AR2_perfReport()
-            print(t)
-            pcall(function() (setclipboard or toclipboard)(t) end)
-            AR2_notify("perf report copied", 5)
-        end})
-        perfSection:AddButton({Name="Perf: Reset Counters",Callback=function()
-            AR2_perfReset() AR2_notify("perf counters reset", 3)
-        end})
-
-        local extrasSection = miscTab:AddSection({Name="Extras",Position="right"})
-        addToggle(extrasSection,"Self Backtrack",AR2_CFG.misc.selfBacktrack,"enabled",function(v) AR2_setSelfBacktrack(v) end)
-        addColorPicker(extrasSection,"Backtrack Color",AR2_CFG.misc.selfBacktrack,"color",function(v) AR2_CFG.misc.selfBacktrack.color=v end)
-        addSlider(extrasSection,"Backtrack Delay",AR2_CFG.misc.selfBacktrack,"delay",0.1,2,0.1,function(v) AR2_CFG.misc.selfBacktrack.delay=v end)
-        addToggle(extrasSection,"Jump Circle",AR2_CFG.misc.jumpCircle,"enabled",function(v) AR2_setJumpCircle(v) end)
-        addColorPicker(extrasSection,"Jump Circle Color",AR2_CFG.misc.jumpCircle,"color",function(v) AR2_CFG.misc.jumpCircle.color=v end)
-        addSlider(extrasSection,"Start Radius",AR2_CFG.misc.jumpCircle,"startRadius",0.5,5,0.5,function(v) AR2_CFG.misc.jumpCircle.startRadius=v end)
-        addSlider(extrasSection,"End Radius",AR2_CFG.misc.jumpCircle,"endRadius",5,30,1,function(v) AR2_CFG.misc.jumpCircle.endRadius=v end)
-        addSlider(extrasSection,"Duration",AR2_CFG.misc.jumpCircle,"duration",0.5,3,0.1,function(v) AR2_CFG.misc.jumpCircle.duration=v end)
-        addToggle(extrasSection,"Instant Interact",AR2_CFG.misc,"instantInteract",function(v) AR2_setInstantInteract(v) end)
-        addToggle(extrasSection,"Player Jesus",AR2_CFG.misc,"playerJesus",function(v) AR2_setPlayerJesus(v) end)
-
-
         local tripleTSection = miscTab:AddSection({Name="Tung",Position="right"})
         addToggle(tripleTSection,"Tung Self",AR2_CFG.misc,"tungSelf",function(v) toggleTungSelf(v) end)
         addToggle(tripleTSection,"Tung Global",AR2_CFG.misc,"tungGlobal",function(v) toggleTungGlobal(v) end)
@@ -24376,6 +27341,10 @@ end
             Notif.new({Title="DROIDWARE",Content=tostring(why),Duration=4})
         end)
 
+        -- ===== RECON =====
+        -- These all existed in the hub already but were never exposed, so the
+        -- only way to see what the wardrobe/GUI actually looks like was to
+        -- call them from a console. Each one prints and copies to clipboard.
         local bagSection = cosTab:AddSection({Name="Fake Bag",Position="right"})
         bagSection:AddLabel("—————————————————")
         addFilteredDropdown(bagSection,"Bag",safeList("bag",AR2_bagCatalogue),AR2_CFG.misc,"bagName",function(v)
