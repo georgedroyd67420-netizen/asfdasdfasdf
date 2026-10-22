@@ -226,7 +226,7 @@ AR2_CFG = {
         -- server to accept shots closer together than the gun can physically
         -- fire; how much it tolerates is a server question, so the counters
         -- below measure it instead of assuming.
-        rpmBoost = 1.00, burstMode = false, burstShots = 3,
+        rpmBoost = 1.00, burstMode = false, burstShots = 2, burstRest = 4,
         originAdjust = true, penBudget = 5,
         trackAmmo = true, autoReloadInv = true,
         safeInterval = 0.2, minInterval = 0.08,
@@ -373,7 +373,7 @@ AR2_CFG = {
         instantInteract = false, playerJesus = false,
         selfBacktrack = { enabled = false, color = Color3.fromRGB(255,255,255), transparency = 0.4, material = Enum.Material.ForceField, delay = 0.3 },
         invisFixV2 = false,
-        invis = { on = false, caseName = "Binoculars", reapply = true,
+        invis = { on = false, caseName = "Binoculars", reapply = false,
                   server = false, reassert = false, reassertSecs = 1,
                   autoGuard = true },
         jumpCircle = { enabled = false, color = Color3.new(1,1,1), startRadius = 1, endRadius = 12, duration = 1.2 },
@@ -10276,6 +10276,7 @@ AR2_rpmEffective = 0
 -- That is measurable -- a burst of 2 kicking as fast as a burst of 6 means
 -- it is per-gap, and you should leave this off entirely.
 AR2_burstCount, AR2_burstDebt, AR2_burstLastShot = 0, 0, 0
+AR2_burstRested = 0
 
 function AR2_rageNoteShot()
     AR2_burstLastShot = os.clock()
@@ -10283,9 +10284,11 @@ function AR2_rageNoteShot()
 end
 
 function AR2_rageBurstStatus()
-    return ("burst %d/%d, debt %.0f ms"):format(
-        AR2_burstCount,
-        math.max(1, math.floor(tonumber(AR2_CFG.rageBot.burstShots) or 3)),
+    local shots = math.max(1, math.floor(tonumber(AR2_CFG.rageBot.burstShots) or 2))
+    local rest  = math.max(1, math.floor(tonumber(AR2_CFG.rageBot.burstRest) or 4))
+    local phase = (AR2_burstCount < shots) and "BURST" or "rest"
+    return ("%s  burst %d/%d, rest %d/%d, debt %.0f ms"):format(
+        phase, AR2_burstCount, shots, AR2_burstRested or 0, rest,
         (AR2_burstDebt or 0) * 1000)
 end
 
@@ -10452,24 +10455,35 @@ function AR2_rageInterval()
         return math.max(legit / boost, 60 / 1100)
     end
 
-    local shots = math.max(1, math.floor(tonumber(AR2_CFG.rageBot.burstShots) or 3))
+    local shots = math.max(1, math.floor(tonumber(AR2_CFG.rageBot.burstShots) or 2))
+    local rest  = math.max(1, math.floor(tonumber(AR2_CFG.rageBot.burstRest) or 4))
 
-    -- idle long enough and the debt is forgiven: you were not shooting, so
-    -- there is nothing to pay back
-    if (os.clock() - (AR2_burstLastShot or 0)) > (legit * (shots + 2)) then
-        AR2_burstCount, AR2_burstDebt = 0, 0
+    -- idle long enough and the cycle resets: you were not shooting, so there
+    -- is nothing owed
+    if (os.clock() - (AR2_burstLastShot or 0)) > (legit * (shots + rest + 2)) then
+        AR2_burstCount, AR2_burstDebt, AR2_burstRested = 0, 0, 0
     end
 
+    -- PHASE 1: the burst. A couple of shots faster than legal.
     if AR2_burstCount < shots then
         local fast = math.max(legit / boost, 60 / 1100)
         AR2_burstDebt = (AR2_burstDebt or 0) + (legit - fast)
         return fast
     end
 
-    -- burst spent: hand back everything borrowed in one wait, then reset
-    local payback = legit + (AR2_burstDebt or 0)
-    AR2_burstCount, AR2_burstDebt = 0, 0
-    return payback
+    -- PHASE 2: back to the weapon's real rate for a few shots. The first of
+    -- them also hands back everything the burst borrowed, so the average over
+    -- a full cycle sits at or under the gun's true rate rather than above it.
+    AR2_burstRested = (AR2_burstRested or 0) + 1
+    local wait = legit
+    if AR2_burstRested == 1 then
+        wait = legit + (AR2_burstDebt or 0)
+        AR2_burstDebt = 0
+    end
+    if AR2_burstRested >= rest then
+        AR2_burstCount, AR2_burstRested = 0, 0   -- cycle again
+    end
+    return wait
 end
 
 local function AR2_releaseVIM()
@@ -11247,11 +11261,19 @@ function AR2_srvInvisInstallGuard()
     AR2_srvInvisGuardOn = ok
 end
 
+-- The binocular route is closed. Measured, not assumed: AddInvisibleCase is
+-- local render on your own Animator, the character diff showed nothing
+-- changes locally when you glass, and sending Character Toggle Binoculars
+-- ourselves only zoomed us while everyone still saw us. Holding the state
+-- without binoculars also breaks the animator (ThirdPersonPoseData). Ghost
+-- Position replaces it.
 function AR2_setServerInvis(on)
     AR2_CFG.misc.invis.server = false
+    if on then AR2_notify("binocular invis removed -- use Movement > Ghost Position", 5) end
     do return false end
 end
-function AR2_setServerInvis_disabled(on)
+
+function AR2_setServerInvis_removed(on)
     AR2_CFG.misc.invis.server = on and true or false
 
     if AR2_SRVINVIS.conn then
@@ -11342,7 +11364,8 @@ function AR2_setInvisible(on)
     AR2_CFG.misc.invis.on = false
     do return false end
 end
-function AR2_setInvisible_disabled(on)
+
+function AR2_setInvisible_removed(on)
     AR2_CFG.misc.invis.on = on and true or false
     if on then
         if not AR2_INVIS.api and not AR2_invisFindAPI() then
@@ -26121,7 +26144,7 @@ function AR2_setGhostPos(on)
     AR2_CFG.misc.ghostPos = false
     do return false end
 end
-function AR2_setGhostPos_disabled(on)
+function AR2_setGhostPos_removed(on)
     AR2_CFG.misc.ghostPos = on and true or false
     AR2_ghostOn = AR2_CFG.misc.ghostPos
     if AR2_ghostOn then
