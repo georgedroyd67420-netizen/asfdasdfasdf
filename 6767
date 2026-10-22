@@ -317,6 +317,7 @@ AR2_CFG = {
                 avatars = true, avatarSize = 18 },
     misc = {
         freecam = false, freecamSpeed = 60, spectate = false, specDist = 10, specNative = true,
+        ghostPos = false, ghostDist = 2000, ghostDir = "Up",
         specHideMinimap = true,
         flySmooth = false, flySmoothSpeed = 28,
         desyncFly = false, freecamDesync = true, desyncHideSelf = true, ownUnlock = false, combatLog = false,
@@ -1708,13 +1709,13 @@ function AR2_isSquadmate(player)
     sf = sf and sf:FindFirstChild("PlayerList")
     sf = sf and sf:FindFirstChild("ScrollingFrame")
     if not sf then return false end
-    for _, template in ipairs(sf:GetChildren()) do
-        if template:IsA("UIListLayout") or template:IsA("UIPadding") then continue end
+    for _, template in ipairs(sf:GetChildren()) do repeat
+        if template:IsA("UIListLayout") or template:IsA("UIPadding") then break end
         local nameLabel = template:FindFirstChild("NameLabel", true)
-        if not nameLabel or nameLabel.Text ~= player.Name then continue end
+        if not nameLabel or nameLabel.Text ~= player.Name then break end
         local yesBox = template:FindFirstChild("YesSquadOuterBox", true)
         return yesBox and yesBox.Visible or false
-    end
+    until true end
     return false
 end
 
@@ -3510,7 +3511,7 @@ function AR2_esp.start()
     AR2_espConn = AR2_RunService.RenderStepped:Connect(function(dt)
         local hz = tonumber(AR2_CFG.players and AR2_CFG.players.espHz) or 60
         if hz > 0 then
-            AR2_espAccum += (dt or 0)
+            AR2_espAccum = AR2_espAccum + ((dt or 0))
             if AR2_espAccum < (1/hz) then return end
             AR2_espAccum = 0
         end
@@ -4998,8 +4999,8 @@ function AR2_updateMinimap()
         AR2_minimapYouDot.Visible = false
     end
     local i = 0
-    for _, pl in ipairs(AR2_Players:GetPlayers()) do
-        if pl == AR2_LocalPlayer then continue end
+    for _, pl in ipairs(AR2_Players:GetPlayers()) do repeat
+        if pl == AR2_LocalPlayer then break end
         local pRoot = pl.Character and pl.Character:FindFirstChild("HumanoidRootPart")
         if pRoot then
             i = i + 1
@@ -5046,7 +5047,7 @@ function AR2_updateMinimap()
             dot.Position = UDim2.fromScale(u, v)
             dot.Visible = true
         end
-    end
+    until true end
     for j = i+1, #AR2_minimapDots do AR2_minimapDots[j].Visible = false end
 
     -- rare / special zombie blips. Deliberately a different SHAPE as well as
@@ -6843,7 +6844,7 @@ function AR2_findBestOrigin(origin, direction, targetPos, targetChar)
             local newOrigin = origin + dir*step
             local delta = targetPos - newOrigin
             if delta.Magnitude > 1e-4 then
-                used += 1
+                used = used + (1)
                 if not AR2_Workspace:Raycast(newOrigin, delta, rayParams) then
                     AR2_lastOriginRays = used
                     if key then memo.key, memo.at, memo.origin, memo.ok = key, os.clock(), newOrigin, true end
@@ -11248,7 +11249,6 @@ end
 
 function AR2_setServerInvis(on)
     AR2_CFG.misc.invis.server = false
-    if on then AR2_notify("invisibility is not in this build", 4) end
     do return false end
 end
 function AR2_setServerInvis_disabled(on)
@@ -16711,12 +16711,12 @@ function AR2_startNoclip()
         local cam  = AR2_Workspace.CurrentCamera
         local move = Vector3.zero
 
-        if UIS:IsKeyDown(Enum.KeyCode.W) then move += cam.CFrame.LookVector end
-        if UIS:IsKeyDown(Enum.KeyCode.S) then move -= cam.CFrame.LookVector end
-        if UIS:IsKeyDown(Enum.KeyCode.D) then move += cam.CFrame.RightVector end
-        if UIS:IsKeyDown(Enum.KeyCode.A) then move -= cam.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.W) then move = move + (cam.CFrame.LookVector) end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then move = move - (cam.CFrame.LookVector) end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then move = move + (cam.CFrame.RightVector) end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then move = move - (cam.CFrame.RightVector) end
 
-        if UIS:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0, 1, 0) end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then move = move + (Vector3.new(0, 1, 0)) end
 
         if UIS:IsKeyDown(Enum.KeyCode.LeftControl)
             or UIS:IsKeyDown(Enum.KeyCode.RightControl)
@@ -16724,7 +16724,7 @@ function AR2_startNoclip()
             or UIS:IsKeyDown(Enum.KeyCode.LeftShift)
             or UIS:IsKeyDown(Enum.KeyCode.RightShift)
         then
-            move -= Vector3.new(0, 1, 0)
+            move = move - (Vector3.new(0, 1, 0))
         end
 
         if move.Magnitude < 0.001 then
@@ -23987,7 +23987,7 @@ function AR2_statsPanelRead(I)
                     local dl = row:FindFirstChild("Data")
                     if dl then
                         res.stats[row.Name] = tostring(dl.Text)
-                        res.n += 1
+                        res.n = res.n + (1)
                     end
                 end
             end
@@ -24560,11 +24560,13 @@ function AR2_installNetGuard()
         end
 
         if AR2_POSITION_MSGS[msg]
-           and (AR2_desyncOn or AR2_CFG.misc.flySmooth
+           and (AR2_ghostOn or AR2_desyncOn or AR2_CFG.misc.flySmooth
                 or (AR2_CFG.misc.antiAim and AR2_CFG.misc.antiAim.look)) then
             local a = table.pack(...)
             local args, n = a, a.n
-            if AR2_desyncOn then
+            if AR2_ghostOn then
+                args, n = AR2_ghostRewrite(args, n)
+            elseif AR2_desyncOn then
                 args, n = AR2_desyncRewriteState(args, n)
                 AR2_desyncRewrites = (AR2_desyncRewrites or 0) + 1
             elseif AR2_CFG.misc.flySmooth then
@@ -24809,7 +24811,7 @@ function AR2_meleeReplay()
                      Ray.new(originPos, dir), t.part,
                      hitPos * sd.st * t.part.Size)
             end)
-            sent += 1
+            sent = sent + (1)
             AR2_meleeFans     = AR2_meleeFans + 1
             AR2_meleeFanCount = AR2_meleeFanCount + 1
         end
@@ -25586,7 +25588,7 @@ function AR2_statsFetchOne(plr)
         for _, row in ipairs(state.Stats or {}) do
             if type(row) == "table" and row.Name ~= nil and row.Value ~= nil then
                 stats[tostring(row.Name)] = tostring(row.Value)
-                n += 1
+                n = n + (1)
             end
         end
 
@@ -26057,6 +26059,107 @@ function AR2_flySmoothStatus()
                 AR2_reportDrift or 0)
 end
 
+
+-- ===== GHOST POSITION (experimental invisibility attempt #4) ===============
+-- Everything we proved about the render flag still holds, and it is a dead
+-- end: AddInvisibleCase is local, binoculars only report state, and the
+-- server decides who sees you. So stop trying to make the server hide us and
+-- use the one input to other clients that we genuinely control -- the
+-- position we report.
+--
+-- Other clients build your model from where the server thinks you are. The
+-- decompile noted a 1250-stud WorldInvis cull and the Animator carries
+-- LodVisibleCutOff, so a character reported far enough away should not be
+-- built at all. This rewrites only the position fields in the outgoing state
+-- report, exactly like the existing desync does, and leaves everything else
+-- untouched.
+--
+-- HONEST COST: the server believes you are there too. Your shots originate
+-- from the fake position, so combat will almost certainly stop working, and a
+-- large enough jump may trip position checks and rubberband you. This is a
+-- hide-while-moving tool, not a fight-invisible tool. Measure, do not assume:
+-- the counter below says how many packets were actually rewritten.
+AR2_ghostOn       = false
+AR2_ghostRewrites = 0
+
+function AR2_ghostOffset()
+    local mode = tostring(AR2_CFG.misc.ghostDir or "Up")
+    local d    = math.clamp(tonumber(AR2_CFG.misc.ghostDist) or 2000, 50, 20000)
+    if mode == "Up"    then return Vector3.new(0, d, 0) end
+    if mode == "Down"  then return Vector3.new(0, -d, 0) end
+    if mode == "North" then return Vector3.new(0, 0, -d) end
+    if mode == "East"  then return Vector3.new(d, 0, 0) end
+    return Vector3.new(0, d, 0)
+end
+
+-- Same by-value match the desync rewrite uses: find the Vector3s that are our
+-- real position and replace those only, so velocity/look vectors are left
+-- alone. Argument order is randomised per packet, so matching by value is the
+-- only reliable way to identify them.
+function AR2_ghostRewrite(args, n)
+    local c = AR2_LocalPlayer.Character
+    local r = c and c:FindFirstChild("HumanoidRootPart")
+    if not r then return args, n end
+    local realPos = r.Position
+    local fake    = realPos + AR2_ghostOffset()
+    local hit = false
+    for i = 1, n do
+        local v = args[i]
+        if typeof(v) == "Vector3" and (v - realPos).Magnitude < 0.5 then
+            args[i] = fake
+            hit = true
+        elseif typeof(v) == "CFrame" and (v.Position - realPos).Magnitude < 0.5 then
+            args[i] = v + AR2_ghostOffset()
+            hit = true
+        end
+    end
+    if hit then AR2_ghostRewrites = (AR2_ghostRewrites or 0) + 1 end
+    return args, n
+end
+
+function AR2_setGhostPos(on)
+    AR2_CFG.misc.ghostPos = false
+    do return false end
+end
+function AR2_setGhostPos_disabled(on)
+    AR2_CFG.misc.ghostPos = on and true or false
+    AR2_ghostOn = AR2_CFG.misc.ghostPos
+    if AR2_ghostOn then
+        if not AR2_netGuardInstalled and type(AR2_installNetGuard) == "function" then
+            AR2_installNetGuard()
+        end
+        if not AR2_netGuardInstalled then
+            AR2_ghostOn = false
+            AR2_CFG.misc.ghostPos = false
+            AR2_notify("ghost position needs the net guard, which did not install", 6)
+            return false
+        end
+        AR2_ghostRewrites = 0
+        AR2_notify(("ghost position ON -- reporting %s %d studs away. Expect "
+                    .. "shots to stop registering."):format(
+                    tostring(AR2_CFG.misc.ghostDir),
+                    math.floor(tonumber(AR2_CFG.misc.ghostDist) or 2000)), 8)
+    else
+        AR2_notify("ghost position off", 3)
+    end
+    return true
+end
+
+function AR2_ghostStatus()
+    return table.concat({
+        "== GHOST POSITION ==",
+        ("  on        : %s"):format(tostring(AR2_ghostOn)),
+        ("  direction : %s  distance: %s"):format(
+            tostring(AR2_CFG.misc.ghostDir), tostring(AR2_CFG.misc.ghostDist)),
+        ("  net guard : %s"):format(tostring(AR2_netGuardInstalled)),
+        ("  packets rewritten: %d"):format(AR2_ghostRewrites or 0),
+        "",
+        "  0 rewritten means the position fields were never matched --",
+        "  tell me and I will match them a different way.",
+        "  You cannot see this yourself. Ask another player.",
+    }, "\n")
+end
+
 function AR2_desyncRewriteState(args, n)
     local rp = AR2_desyncRoot
     if not (rp and rp.Parent and AR2_desyncHome) then return args, n end
@@ -26330,12 +26433,12 @@ function AR2_desyncSet(on)
         if not AR2_desyncArmed then return end
 
         local move = Vector3.new(0, 0, 0)
-        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.W) then move += cf.LookVector end
-        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= cf.LookVector end
-        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.D) then move += cf.RightVector end
-        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= cf.RightVector end
-        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0, 1, 0) end
-        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move -= Vector3.new(0, 1, 0) end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + (cf.LookVector) end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - (cf.LookVector) end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + (cf.RightVector) end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - (cf.RightVector) end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + (Vector3.new(0, 1, 0)) end
+        if AR2_UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move = move - (Vector3.new(0, 1, 0)) end
 
         if move.Magnitude > 0 then
             local step = move.Unit * speed * math.min(dt, 0.1)
