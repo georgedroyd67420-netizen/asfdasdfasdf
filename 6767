@@ -23048,6 +23048,9 @@ function AR2_buildUI()
             pcall(function() (setclipboard or toclipboard)(t) end)
             AR2_notify("equip sends copied", 5)
         end})
+        rageBotSection:AddLabel("Burst fires fast then waits long. If a 2-shot")
+        rageBotSection:AddLabel("burst kicks as fast as a 6-shot one, the server")
+        rageBotSection:AddLabel("checks shot GAPS and no boost will ever be safe.")
         local rpmLbl = rageBotSection:AddLabel("rpm -")
         task.spawn(function()
             local gen = AR2_uiGeneration
@@ -27410,6 +27413,185 @@ end
         addToggle(ads3p,"Hide Viewmodel", AR2_CFG.misc.thirdPersonADS,"hideViewmodel")
         addToggle(ads3p,"Only While Weapon Equipped", AR2_CFG.misc.thirdPersonADS,"requireWeapon")
         ads3p:AddLabel("Hold RMB to shoulder-aim (conflicts with FOV Zoom)")
+
+        local outlineSection = miscTab:AddSection({Name="Player Outlines"})
+        addToggle(outlineSection,"Enabled",AR2_CFG.misc,"charm",function(v) AR2_toggleCharm(v) end)
+        addDropdown(outlineSection,"Mode",{"Color","BlackWhite"},AR2_CFG.misc,"charmMode",function(v) AR2_setCharmMode(v) end)
+        addSlider(outlineSection,"Hue",AR2_CFG.misc,"charmHue",0,360,function(v) AR2_setCharmHue(v) end)
+        addSlider(outlineSection,"Gray (BlackWhite)",AR2_CFG.misc,"charmGray",0,100,function(v) AR2_setCharmGray(v) end)
+        addToggle(outlineSection,"Rainbow",AR2_CFG.misc,"charmRainbow",function(v) AR2_toggleCharmRainbow(v) end)
+        addToggle(outlineSection,"Global Outline",AR2_CFG.misc,"globalCharm",function(v) AR2_applyCharm(AR2_LocalPlayer.Character) end)
+
+        local personalSection = miscTab:AddSection({Name="Personal Chams",Position="right"})
+        addToggle(personalSection,"Character Appearance",AR2_CFG.misc,"personalCharOn",
+            function(v) AR2_setPersonalCharacter(v,AR2_CFG.misc.personalCharMode,AR2_CFG.misc.personalCharHue,AR2_CFG.misc.personalCharGray,AR2_CFG.misc.personalCharMaterial,AR2_CFG.misc.personalCharRainbow) end)
+        addDropdown(personalSection,"Character Mode",{"Color","BlackWhite"},AR2_CFG.misc,"personalCharMode",
+            function(v) if AR2_CFG.misc.personalCharOn then AR2_setPersonalCharacter(true,v,AR2_CFG.misc.personalCharHue,AR2_CFG.misc.personalCharGray,AR2_CFG.misc.personalCharMaterial,AR2_CFG.misc.personalCharRainbow) end end)
+        addSlider(personalSection,"Character Hue",AR2_CFG.misc,"personalCharHue",0,360,
+            function(v) if AR2_CFG.misc.personalCharOn then AR2_setPersonalCharacter(true,AR2_CFG.misc.personalCharMode,v,AR2_CFG.misc.personalCharGray,AR2_CFG.misc.personalCharMaterial,AR2_CFG.misc.personalCharRainbow) end end)
+        addSlider(personalSection,"Character Gray",AR2_CFG.misc,"personalCharGray",0,100,
+            function(v) if AR2_CFG.misc.personalCharOn then AR2_setPersonalCharacter(true,AR2_CFG.misc.personalCharMode,AR2_CFG.misc.personalCharHue,v,AR2_CFG.misc.personalCharMaterial,AR2_CFG.misc.personalCharRainbow) end end)
+        addDropdown(personalSection,"Character Material",{"ForceField","Neon"},AR2_CFG.misc,"personalCharMaterial",
+            function(v) if AR2_CFG.misc.personalCharOn then AR2_setPersonalCharacter(true,AR2_CFG.misc.personalCharMode,AR2_CFG.misc.personalCharHue,AR2_CFG.misc.personalCharGray,v,AR2_CFG.misc.personalCharRainbow) end end)
+        addToggle(personalSection,"Character Rainbow",AR2_CFG.misc,"personalCharRainbow",
+            function(v) if AR2_CFG.misc.personalCharOn then AR2_setPersonalCharacter(true,AR2_CFG.misc.personalCharMode,AR2_CFG.misc.personalCharHue,AR2_CFG.misc.personalCharGray,AR2_CFG.misc.personalCharMaterial,v) end end)
+        addToggle(personalSection,"Gun Appearance",AR2_CFG.misc,"personalGunOn",
+            function(v) AR2_setPersonalGun(v,AR2_CFG.misc.personalGunMode,AR2_CFG.misc.personalGunHue,AR2_CFG.misc.personalGunGray,AR2_CFG.misc.personalGunMaterial,AR2_CFG.misc.personalGunRainbow) end)
+        addDropdown(personalSection,"Gun Mode",{"Color","BlackWhite"},AR2_CFG.misc,"personalGunMode",
+            function(v) if AR2_CFG.misc.personalGunOn then AR2_setPersonalGun(true,v,AR2_CFG.misc.personalGunHue,AR2_CFG.misc.personalGunGray,AR2_CFG.misc.personalGunMaterial,AR2_CFG.misc.personalGunRainbow) end end)
+        addSlider(personalSection,"Gun Hue",AR2_CFG.misc,"personalGunHue",0,360,
+            function(v) if AR2_CFG.misc.personalGunOn then AR2_setPersonalGun(true,AR2_CFG.misc.personalGunMode,v,AR2_CFG.misc.personalGunGray,AR2_CFG.misc.personalGunMaterial,AR2_CFG.misc.personalGunRainbow) end end)
+        addSlider(personalSection,"Gun Gray",AR2_CFG.misc,"personalGunGray",0,100,
+            function(v) if AR2_CFG.misc.personalGunOn then AR2_setPersonalGun(true,AR2_CFG.misc.personalGunMode,AR2_CFG.misc.personalGunHue,v,AR2_CFG.misc.personalGunMaterial,AR2_CFG.misc.personalGunRainbow) end end)
+        addDropdown(personalSection,"Gun Material",{"Neon","ForceField"},AR2_CFG.misc,"personalGunMaterial",
+            function(v) if AR2_CFG.misc.personalGunOn then AR2_setPersonalGun(true,AR2_CFG.misc.personalGunMode,AR2_CFG.misc.personalGunHue,AR2_CFG.misc.personalGunGray,v,AR2_CFG.misc.personalGunRainbow) end end)
+        addToggle(personalSection,"Gun Rainbow",AR2_CFG.misc,"personalGunRainbow",
+            function(v) if AR2_CFG.misc.personalGunOn then AR2_setPersonalGun(true,AR2_CFG.misc.personalGunMode,AR2_CFG.misc.personalGunHue,AR2_CFG.misc.personalGunGray,AR2_CFG.misc.personalGunMaterial,v) end end)
+
+        local hideSection = miscTab:AddSection({Name="Hide"})
+        addToggle(hideSection,"Hide Player",AR2_CFG.misc,"hidePlayer",function(v) AR2_toggleHidePlayer(v) end)
+        addToggle(hideSection,"Hide Gun",AR2_CFG.misc,"hideGun",function(v) AR2_toggleHideGun(v) end)
+
+
+        local morphSection = miscTab:AddSection({Name="Model Morph"})
+        addDropdown(morphSection,"Preset",{"Custom","Spongebob","Verity","Tung Tung Tung","Gucci Morty","Droid"},AR2_CFG.misc,"morphPreset",function(v)
+            if v == "Spongebob" then AR2_CFG.misc.morphId = "4759134675"
+            elseif v == "Verity" then AR2_CFG.misc.morphId = "140105640267431"
+            elseif v == "Tung Tung Tung" then AR2_CFG.misc.morphId = "138151705692565"
+            elseif v == "Gucci Morty" then AR2_CFG.misc.morphId = "82766930708256"
+            elseif v == "Droid" then AR2_CFG.misc.morphId = "101088259357349" end
+        end)
+        morphSection:AddButton({Name="Set Model ID", Callback=function()
+            AR2_morphPrompt("Model asset ID:", AR2_CFG.misc.morphId or "", function(v)
+                AR2_CFG.misc.morphId = tostring(v or ""):gsub("%D","")
+                AR2_CFG.misc.morphPreset = "Custom"
+            end)
+        end})
+        addToggle(morphSection,"Hide My Character",AR2_CFG.misc,"morphHideSelf",function(v)
+            AR2_refreshHideState()
+        end)
+        morphSection:AddButton({Name="Apply Morph", Callback=function() AR2_applyMorph() end})
+        morphSection:AddButton({Name="Remove Morph", Callback=function() AR2_removeMorph() end})
+
+        local killfeedSection = miscTab:AddSection({Name="Killfeed Name"})
+        addToggle(killfeedSection,"Spoof My Name (everywhere)",AR2_CFG.misc,"killfeedSpoof",function(v)
+            AR2_setNameSpoof(v)
+        end)
+        killfeedSection:AddButton({Name="Set Name", Callback=function()
+            AR2_morphPrompt("Killfeed name:", AR2_CFG.misc.killfeedName or "", function(v)
+                AR2_CFG.misc.killfeedName = tostring(v or "")
+            end)
+        end})
+
+        local enemyMorphSection = miscTab:AddSection({Name="Enemy Morph",Position="right"})
+        addToggle(enemyMorphSection,"Enabled",AR2_CFG.misc,"enemyMorph",function(v) AR2_setEnemyMorph(v) end)
+        addSlider(enemyMorphSection,"Hide Within (studs)",AR2_CFG.misc,"enemyMorphNear",0,120,2)
+        addSlider(enemyMorphSection,"Stop Beyond (studs)",AR2_CFG.misc,"enemyMorphFar",100,3000,50)
+        addToggle(enemyMorphSection,"Don't Hide Real Body",AR2_CFG.misc,"enemyMorphNoHide")
+        addSlider(enemyMorphSection,"Max Morphed Players",AR2_CFG.misc,"enemyMorphMax",1,20,1)
+        addSlider(enemyMorphSection,"Max Parts Per Rig",AR2_CFG.misc,"enemyMorphPartCap",10,300,10)
+        addDropdown(enemyMorphSection,"Preset",{"Custom","Spongebob","Verity","Tung Tung Tung","Gucci Morty","Droid"},AR2_CFG.misc,"enemyMorphPreset",function(v)
+            if v == "Spongebob" then AR2_CFG.misc.enemyMorphId = "4759134675"
+            elseif v == "Verity" then AR2_CFG.misc.enemyMorphId = "140105640267431"
+            elseif v == "Tung Tung Tung" then AR2_CFG.misc.enemyMorphId = "138151705692565"
+            elseif v == "Gucci Morty" then AR2_CFG.misc.enemyMorphId = "82766930708256"
+            elseif v == "Droid" then AR2_CFG.misc.enemyMorphId = "101088259357349" end
+            if AR2_CFG.misc.enemyMorph then
+                AR2_setEnemyMorph(false)
+                AR2_setEnemyMorph(true)
+            end
+        end)
+        enemyMorphSection:AddButton({Name="Set Model ID", Callback=function()
+            AR2_morphPrompt("Enemy model asset ID:", AR2_CFG.misc.enemyMorphId or "", function(v)
+                AR2_CFG.misc.enemyMorphId = tostring(v or ""):gsub("%D","")
+                AR2_CFG.misc.enemyMorphPreset = "Custom"
+                if AR2_CFG.misc.enemyMorph then
+                    AR2_setEnemyMorph(false)
+                    AR2_setEnemyMorph(true)
+                end
+            end)
+        end})
+        addToggle(enemyMorphSection,"Hide Their Real Body",AR2_CFG.misc,"enemyMorphHide",function(v)
+            if AR2_CFG.misc.enemyMorph then
+                AR2_setEnemyMorph(false)
+                AR2_setEnemyMorph(true)
+            end
+        end)
+        enemyMorphSection:AddButton({Name="Clear All", Callback=function() pcall(AR2_enemyMorphClearAll) end})
+
+
+        local mvSection = miscTab:AddSection({Name="Vault & Interact",Position="right"})
+        addToggle(mvSection,"Long Interact",AR2_CFG.misc,"interactFar")
+        addToggle(mvSection,"Interact Through Walls",AR2_CFG.misc,"interactXray")
+        addToggle(mvSection,"Long Vault",AR2_CFG.misc,"vaultFar",function(v)
+            pcall(AR2_mvApplyVault)
+        end)
+        addToggle(mvSection,"Vault Anything",AR2_CFG.misc,"vaultAny")
+
+
+        mvSection:AddButton({Name="Max Out Range",Callback=function()
+            AR2_CFG.misc.interactRange = 400
+            AR2_CFG.misc.interactMult  = 10
+            AR2_CFG.misc.vaultMult     = 8
+            AR2_CFG.misc.vaultRadius   = 150
+            AR2_CFG.misc.interactFar   = true
+            AR2_CFG.misc.vaultFar      = true
+            AR2_CFG.misc.interactXray  = true
+            AR2_CFG.misc.vaultAny      = true
+            pcall(AR2_mvApplyVault)
+            pcall(function() if AR2_refreshUI then AR2_refreshUI() end end)
+            AR2_notify("maxed: interact 400s x10, vault x8 / 150s radius, xray + vault-anything on", 5)
+        end})
+
+        mvSection:AddButton({Name="Reset To Normal",Callback=function()
+            AR2_CFG.misc.interactRange = 120
+            AR2_CFG.misc.interactMult  = 1
+            AR2_CFG.misc.vaultMult     = 1
+            AR2_CFG.misc.vaultRadius   = 40
+            AR2_CFG.misc.interactFar   = false
+            AR2_CFG.misc.vaultFar      = false
+            AR2_CFG.misc.interactXray  = false
+            AR2_CFG.misc.vaultAny      = false
+            pcall(AR2_mvApplyVault)
+            pcall(AR2_mvReleaseAll)
+            pcall(function() if AR2_refreshUI then AR2_refreshUI() end end)
+            AR2_notify("interact + vault back to the game's normal values", 4)
+        end})
+        mvSection:AddButton({
+            Name = "Release All Tags",
+            Callback = function()
+                local ok,why = AR2_mvReleaseAll()
+                Notif.new({Title="DROIDWARE",Content=tostring(why),Duration=4})
+            end,
+        })
+
+        local combatLogSection = miscTab:AddSection({Name="Combat Log"})
+        addToggle(combatLogSection,"Clear Combat Lock",AR2_CFG.misc,"combatLog",function(v) AR2_combatLogSet(v) end,"combatLog")
+        combatLogSection:AddLabel("Unlocks the client's leave button only")
+
+        local perfSection = miscTab:AddSection({Name="Performance Check"})
+        perfSection:AddButton({Name="Perf: Report",Callback=function()
+            local t = AR2_perfReport()
+            print(t)
+            pcall(function() (setclipboard or toclipboard)(t) end)
+            AR2_notify("perf report copied", 5)
+        end})
+        perfSection:AddButton({Name="Perf: Reset Counters",Callback=function()
+            AR2_perfReset() AR2_notify("perf counters reset", 3)
+        end})
+
+        local extrasSection = miscTab:AddSection({Name="Extras",Position="right"})
+        addToggle(extrasSection,"Self Backtrack",AR2_CFG.misc.selfBacktrack,"enabled",function(v) AR2_setSelfBacktrack(v) end)
+        addColorPicker(extrasSection,"Backtrack Color",AR2_CFG.misc.selfBacktrack,"color",function(v) AR2_CFG.misc.selfBacktrack.color=v end)
+        addSlider(extrasSection,"Backtrack Delay",AR2_CFG.misc.selfBacktrack,"delay",0.1,2,0.1,function(v) AR2_CFG.misc.selfBacktrack.delay=v end)
+        addToggle(extrasSection,"Jump Circle",AR2_CFG.misc.jumpCircle,"enabled",function(v) AR2_setJumpCircle(v) end)
+        addColorPicker(extrasSection,"Jump Circle Color",AR2_CFG.misc.jumpCircle,"color",function(v) AR2_CFG.misc.jumpCircle.color=v end)
+        addSlider(extrasSection,"Start Radius",AR2_CFG.misc.jumpCircle,"startRadius",0.5,5,0.5,function(v) AR2_CFG.misc.jumpCircle.startRadius=v end)
+        addSlider(extrasSection,"End Radius",AR2_CFG.misc.jumpCircle,"endRadius",5,30,1,function(v) AR2_CFG.misc.jumpCircle.endRadius=v end)
+        addSlider(extrasSection,"Duration",AR2_CFG.misc.jumpCircle,"duration",0.5,3,0.1,function(v) AR2_CFG.misc.jumpCircle.duration=v end)
+        addToggle(extrasSection,"Instant Interact",AR2_CFG.misc,"instantInteract",function(v) AR2_setInstantInteract(v) end)
+        addToggle(extrasSection,"Player Jesus",AR2_CFG.misc,"playerJesus",function(v) AR2_setPlayerJesus(v) end)
+
 
         local tripleTSection = miscTab:AddSection({Name="Tung",Position="right"})
         addToggle(tripleTSection,"Tung Self",AR2_CFG.misc,"tungSelf",function(v) toggleTungSelf(v) end)
