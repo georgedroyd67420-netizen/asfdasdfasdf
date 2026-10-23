@@ -32,12 +32,12 @@ local function bust(url)
 end
 local libSource = fetchLib(bust(_dwEnv.DwLibUrl or PROD_URL))
 local libChunk = type(libSource) == "string" and loadstring(libSource) or nil
-assert(libChunk, "[BLIPWARE] DWLib did not compile, fetched from " .. tostring(_dwEnv.DwLibUrl or PROD_URL))
+assert(libChunk, "[DROIDWARE] DWLib did not compile, fetched from " .. tostring(_dwEnv.DwLibUrl or PROD_URL))
 local Library = libChunk()
-assert(type(Library) == "table", "[BLIPWARE] DWLib failed to load.")
+assert(type(Library) == "table", "[DROIDWARE] DWLib failed to load.")
 _dwEnv.DWLib = Library
 MyLib = Library
-pcall(function() print("[BLIPWARE] DWLib " .. tostring(Library.BuildId)) end)
+pcall(function() print("[DROIDWARE] DWLib " .. tostring(Library.BuildId)) end)
 if type(Library.SetMenuKeybind) == "function" then
     Library:SetMenuKeybind(Enum.KeyCode.K)
 end
@@ -47,7 +47,7 @@ if workspace:FindFirstChild("UrchinRig") then
 end
 
 local Window = Library:CreateWindow({
-    Name = "Blipware",
+    Name = "DROIDWARE",
     SubName = "Operation One",
     ToggleButtonEnabled = false,
     KeybindListEnabled = true,
