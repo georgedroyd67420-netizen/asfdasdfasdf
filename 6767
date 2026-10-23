@@ -190,18 +190,18 @@ AR2_CFG = {
  meleeAura = false, overReach = false, spoofOrigin = false },
  rageBot = {
  on = false, maxDist = 800, ignoreFov = false, inventoryShoot = false,
- rpmBoost = 1.00, burstMode = false, burstShots = 2, burstRest = 4,
+ rpmBoost = 1.00, burstMode = true, burstShots = 2, burstRest = 4,
  originAdjust = true, penBudget = 5,
  trackAmmo = true, autoReloadInv = true,
  safeInterval = 0.2, minInterval = 0.08,
  requireADS = false, forceADS = false, adsMinDist = 0, fov = 250,
  panicKey = "L", glitchWarn = true,
- visCheck = true,
+ visCheck = false,
  multiGap = 0.02,
  legalOnly = false,
  },
  weapon = {
- noRecoil = false, allFireModes = false, fireModesSafe = true,
+ noRecoil = false, allFireModes = false, fireModesSafe = false,
  wallbang = false, wallbangBudget = 5,
  wallbangFilter = false, wallbangPierce = 5, wallbangTag = false,
  penBudget = 5, penUnlimited = false, hbeVisual = false, hbeSpoofCast = false,
@@ -211,6 +211,7 @@ AR2_CFG = {
  globalSpeed = false, globalSpeedMult = 1, zeroDrop = false,
  flyFireSlow = true, flyFireSlowPct = 0.15, fakeWindows = false,
  volley = false, volleyGap = 100,
+ fireRateUnlock = false, fireRateBoost = 1.15,
  alwaysHead = false,
  skinOn = false, skinName = "None",
  ignoreInject = false, ignoreHoldMs = 600,
@@ -227,6 +228,7 @@ AR2_CFG = {
  fullbright = false, nofog = false, setTime = false, brightness = 3, time = 14,
  skybox = "Default",
  cloudsEnabled = false, modifyClouds = false,
+ renderUnlock = false, renderDist = 20000,
  cloudsColor = Color3.fromRGB(255,255,255), cloudsCover = 0.5, cloudsDensity = 0.5,
  colorCorrectionEnabled = false, ccSaturation = 1, ccContrast = 0.5, ccBrightness = 1,
  removeDoors    = false,
@@ -279,7 +281,9 @@ AR2_CFG = {
  avatars = true, avatarSize = 18 },
  misc = {
  freecam = false, freecamSpeed = 60, spectate = false, specDist = 10, specNative = true,
- ghostPos = false, ghostDist = 2000, ghostDir = "Up",
+ ghostPos = false, ghostDist = 420, ghostDir = "Up",
+ highGhost = false, ghostAlt = 1400, ghostRender = true, forceRender = false,
+ stateFlip = "Off", stateFlipIdx = 1,
  bodyHide = false, bodyHideDist = 500,
  appBreak = false, appMode = "Ghost Item",
  bodyHideOnRespawn = false, bodyHideDelay = 0.3,
@@ -1926,6 +1930,48 @@ function AR2_collect(container, builder)
  table.sort(list, function(a, b) return a.distance < b.distance end)
  return list
 end
+AR2_entLib = nil
+function AR2_entities()
+ if AR2_entLib ~= nil then return AR2_entLib end
+ local ok, lib = pcall(function()
+ local fw = require(AR2_ReplicatedFirst:WaitForChild("Framework", 10))
+ return fw.Libraries.Entities
+ end)
+ AR2_entLib = (ok and type(lib) == "table") and lib or false
+ return AR2_entLib
+end
+function AR2_entityOf(inst)
+ local lib = AR2_entities()
+ if not lib or type(lib.Search) ~= "function" then return nil end
+ local ok, ent = pcall(lib.Search, lib, inst)
+ if ok and type(ent) == "table" then return ent end
+ if inst:IsA("Model") then
+ for _, d in ipairs(inst:GetChildren()) do
+ local ok2, e2 = pcall(lib.Search, lib, d)
+ if ok2 and type(e2) == "table" then return e2 end
+ end
+ end
+ return nil
+end
+function AR2_entState(ent, key)
+ if not ent or type(ent.GetState) ~= "function" then return nil end
+ local ok, v = pcall(ent.GetState, ent, key)
+ if ok then return v end
+ return nil
+end
+function AR2_entItems(ent)
+ local draw = AR2_entState(ent, "DrawItems")
+ if type(draw) ~= "table" then return nil, 0 end
+ local names, n = {}, 0
+ for _, item in pairs(draw) do
+ n = n + 1
+ if type(item) == "table" and item.Name then
+ names[#names + 1] = tostring(item.Name)
+ end
+ end
+ table.sort(names)
+ return names, n
+end
 function AR2_readLootNodes(model)
  local byName, order = {}, {}
  for _, child in ipairs(model:GetChildren()) do
@@ -1980,11 +2026,21 @@ function AR2_collectLoot(radius, filter)
  end
  end
  if keep then
+ local ent = AR2_entityOf(model)
+ local items, itemCount = nil, 0
+ local isEmpty, prompt = nil, nil
+ if ent then
+ items, itemCount = AR2_entItems(ent)
+ isEmpty = AR2_entState(ent, "IsEmpty")
+ prompt  = AR2_entState(ent, "Prompt")
+ end
  list[#list + 1] = {
  kind = "loot", model = model, name = model.Name,
  displayName = model:GetAttribute("DisplayName") or model.Name,
  root = anchor, position = anchor.Position, distance = dist, nodes = nodes,
  filled = AR2_lootFilledCount(nodes),
+ entity = ent, items = items, itemCount = itemCount,
+ isEmpty = isEmpty, prompt = prompt,
  }
  end
  end
@@ -2511,6 +2567,13 @@ function AR2_newVisual()
  outline.Color = Color3.fromRGB(0,0,0)
  local fill = Drawing.new("Square")
  fill.Thickness, fill.Filled, fill.Transparency, fill.Visible = 1, true, 0.8, false
+ local cornerBg = {}
+ for i = 1, 8 do
+ local l = Drawing.new("Line")
+ l.Thickness, l.Transparency, l.Visible = 3, 0.85, false
+ l.Color = Color3.fromRGB(0, 0, 0)
+ cornerBg[i] = l
+ end
  local corners = {}
  for i = 1, 8 do
  local l = Drawing.new("Line")
@@ -2526,7 +2589,7 @@ function AR2_newVisual()
  hbBg.Filled, hbBg.Color, hbBg.Transparency, hbBg.Visible = true, Color3.fromRGB(0,0,0), 0.5, false
  local hbFill = Drawing.new("Square")
  hbFill.Filled, hbFill.Color, hbFill.Transparency, hbFill.Visible = true, Color3.fromRGB(80,220,90), 1, false
- return { box=box, outline=outline, fill=fill, corners=corners,
+ return { box=box, outline=outline, fill=fill, corners=corners, cornerBg=cornerBg,
  name=name, info=info, htxt=htxt, tracer=tracer, hbBg=hbBg, hbFill=hbFill }
 end
 function AR2_acquireVisual(index)
@@ -2539,6 +2602,7 @@ function AR2_hideVisual(v)
  if v.outline then v.outline.Visible = false end
  if v.fill    then v.fill.Visible    = false end
  if v.corners then for _, l in ipairs(v.corners) do l.Visible = false end end
+ if v.cornerBg then for _, l in ipairs(v.cornerBg) do l.Visible = false end end
  v.name.Visible   = false
  v.info.Visible   = false
  if v.htxt   then v.htxt.Visible   = false end
@@ -2546,8 +2610,10 @@ function AR2_hideVisual(v)
  if v.hbBg   then v.hbBg.Visible   = false end
  if v.hbFill then v.hbFill.Visible = false end
 end
+local function px(n) return math.floor(n + 0.5) end
 function AR2_paintBox(v, x, y, w, h, color)
  local th = AR2_CFG.style.boxThickness or 1
+ x, y, w, h = px(x), px(y), px(w), px(h)
  if AR2_CFG.style.fill then
  v.fill.Position = Vector2.new(x, y)
  v.fill.Size     = Vector2.new(w, h)
@@ -2566,14 +2632,21 @@ function AR2_paintBox(v, x, y, w, h, color)
  v.box.Thickness = th
  v.box.Visible   = true
  for _, l in ipairs(v.corners) do l.Visible = false end
+ if v.cornerBg then for _, l in ipairs(v.cornerBg) do l.Visible = false end end
  else
  v.box.Visible = false
  v.outline.Visible = false
- local L = math.clamp(math.min(w, h) * 0.28, 5, 16)
- local c = v.corners
+ local L = math.clamp(math.min(w, h) * 0.3, 6, 18)
+ local c, bg = v.corners, v.cornerBg
  local function seg(i, x1, y1, x2, y2)
+ local a, b = Vector2.new(px(x1), px(y1)), Vector2.new(px(x2), px(y2))
+ if bg then
+ local d = bg[i]
+ d.From, d.To = a, b
+ d.Thickness, d.Visible = th + 2, true
+ end
  local l = c[i]
- l.From, l.To = Vector2.new(x1, y1), Vector2.new(x2, y2)
+ l.From, l.To = a, b
  l.Color, l.Thickness, l.Visible = color, th, true
  end
  seg(1, x, y,       x+L, y)        seg(2, x, y,       x, y+L)
@@ -2784,14 +2857,15 @@ function AR2_drawEntity(model, color, label, sub, opt)
  v.box.Visible = false v.outline.Visible = false v.fill.Visible = false
  for _, l in ipairs(v.corners) do l.Visible = false end
  end
+ local cx = math.floor(x + w/2 + 0.5)
  if label and label ~= "" then
  v.name.Text, v.name.Color, v.name.Size = label, color, ts
- v.name.Position = Vector2.new(x + w/2, y - ts - 3)
+ v.name.Position = Vector2.new(cx, math.floor(y - ts - 3))
  v.name.Visible  = true
  else v.name.Visible = false end
  if sub and sub ~= "" then
  v.info.Text, v.info.Color, v.info.Size = sub, (AR2_COLORS.info or Color3.fromRGB(220,220,225)), ts - 1
- v.info.Position = Vector2.new(x + w/2, y + h + 2)
+ v.info.Position = Vector2.new(cx, math.floor(y + h + 3))
  v.info.Visible  = true
  else v.info.Visible = false end
  if opt.tracer then
@@ -2816,13 +2890,15 @@ function AR2_drawEntity(model, color, label, sub, opt)
  else hp, maxHp = AR2_readEntityHealth(model) end
  if hp and maxHp and maxHp > 0 then
  local pct   = math.clamp(hp / maxHp, 0, 1)
- local barW  = 3
- local barX  = x - barW - 4
- local fillH = math.max(1, math.floor(h * pct))
- v.hbBg.Position = Vector2.new(barX - 1, y - 1)
- v.hbBg.Size     = Vector2.new(barW + 2, h + 2)
- v.hbBg.Color, v.hbBg.Transparency, v.hbBg.Visible = Color3.fromRGB(0,0,0), 0.55, true
- v.hbFill.Position = Vector2.new(barX, y + h - fillH)
+ local barW  = 4
+ local barX  = math.floor(x - barW - 5)
+ local by    = math.floor(y)
+ local bh    = math.floor(h)
+ local fillH = math.max(1, math.floor(bh * pct))
+ v.hbBg.Position = Vector2.new(barX - 1, by - 1)
+ v.hbBg.Size     = Vector2.new(barW + 2, bh + 2)
+ v.hbBg.Color, v.hbBg.Transparency, v.hbBg.Visible = Color3.fromRGB(8,8,10), 0.85, true
+ v.hbFill.Position = Vector2.new(barX, by + bh - fillH)
  v.hbFill.Size     = Vector2.new(barW, fillH)
  v.hbFill.Color, v.hbFill.Transparency, v.hbFill.Visible = AR2_hpColor(pct), 1, true
  if AR2_CFG.style.healthText and v.htxt then
@@ -3082,7 +3158,16 @@ function AR2_buildFrame()
  local color = AR2_TIER_COLOR[rank] or AR2_TIER_COLOR[0]
  local bits = {}
  if c.dist then bits[#bits+1] = AR2_fmtDist(e.distance) .. "s" end
- if c.showNodes and #e.nodes > 0 then
+ if e.items and #e.items > 0 then
+ local show = math.min(#e.items, c.nodeCount or 3)
+ local parts = {}
+ for i = 1, show do parts[i] = e.items[i] end
+ local extra = #e.items - show
+ bits[#bits+1] = table.concat(parts, ", ")
+ .. (extra > 0 and (" +" .. extra) or "")
+ elseif e.isEmpty == true then
+ bits[#bits+1] = "empty"
+ elseif c.showNodes and #e.nodes > 0 then
  bits[#bits+1] = "table: "
  .. AR2_lootNodeText(e.nodes, c.nodeCount or 3)
  end
@@ -9226,34 +9311,8 @@ function AR2_rageInterval()
  local floor = math.clamp(tonumber(AR2_CFG.rageBot.minInterval) or 0.08, 0.05, 1)
  if iv < floor then iv = floor end
  local legit = iv
- local boost = math.clamp(tonumber(AR2_CFG.rageBot.rpmBoost) or 1, 1, 1.2)
- if boost <= 1.001 then
- AR2_burstCount, AR2_burstDebt = 0, 0
- return math.max(legit, 60 / 1100)
- end
- if not AR2_CFG.rageBot.burstMode then
- return math.max(legit / boost, 60 / 1100)
- end
- local shots = math.max(1, math.floor(tonumber(AR2_CFG.rageBot.burstShots) or 2))
- local rest  = math.max(1, math.floor(tonumber(AR2_CFG.rageBot.burstRest) or 4))
- if (os.clock() - (AR2_burstLastShot or 0)) > (legit * (shots + rest + 2)) then
  AR2_burstCount, AR2_burstDebt, AR2_burstRested = 0, 0, 0
- end
- if AR2_burstCount < shots then
- local fast = math.max(legit / boost, 60 / 1100)
- AR2_burstDebt = (AR2_burstDebt or 0) + (legit - fast)
- return fast
- end
- AR2_burstRested = (AR2_burstRested or 0) + 1
- local wait = legit
- if AR2_burstRested == 1 then
- wait = legit + (AR2_burstDebt or 0)
- AR2_burstDebt = 0
- end
- if AR2_burstRested >= rest then
- AR2_burstCount, AR2_burstRested = 0, 0
- end
- return wait
+ return math.max(legit, 60 / 1100)
 end
 function AR2_releaseVIM()
  if AR2_rbHeld then
@@ -10202,6 +10261,46 @@ function AR2_volleyOuterItem()
  if not ok or not pc or not pc.Character then return nil end
  return pc.Character.EquippedItem
 end
+AR2_frSaved = setmetatable({}, { __mode = "k" })
+AR2_FR_FIELDS = { "FireRate", "SemiFireRate", "AutoFireRate", "BurstFireRate" }
+function AR2_fireRateApply()
+ local item = AR2_volleyOuterItem()
+ if not item then return end
+ local inner = rawget(item, "__item") or item
+ local okFc, fc = pcall(function() return item.FireConfig end)
+ if not okFc or type(fc) ~= "table" then return end
+ local boost = math.clamp(tonumber(AR2_CFG.weapon.fireRateBoost) or 1, 1, 1.2)
+ local want  = AR2_CFG.weapon.fireRateUnlock and boost > 1.001
+ if AR2_CFG.weapon.volley then return end
+ if want then
+ if AR2_frSaved[inner] == nil then AR2_frSaved[inner] = fc end
+ local base = AR2_frSaved[inner]
+ local copy = { __ar2fr = true }
+ for k, v in pairs(base) do copy[k] = v end
+ for _, f in ipairs(AR2_FR_FIELDS) do
+ local r = tonumber(base[f])
+ if r and r > 0 then copy[f] = math.min(r * boost, 1100) end
+ end
+ pcall(function() inner.FireConfig = copy end)
+ elseif AR2_frSaved[inner] ~= nil then
+ pcall(function() inner.FireConfig = AR2_frSaved[inner] end)
+ AR2_frSaved[inner] = nil
+ end
+end
+function AR2_setFireRateUnlock(on)
+ AR2_CFG.weapon.fireRateUnlock = on and true or false
+ if not on then
+ for inner, fc in pairs(AR2_frSaved) do
+ pcall(function() inner.FireConfig = fc end)
+ end
+ AR2_frSaved = setmetatable({}, { __mode = "k" })
+ AR2_notify("fire rate -> stock", 3)
+ else
+ pcall(AR2_fireRateApply)
+ AR2_notify(("fire rate -> x%.2f")
+ :format(math.clamp(tonumber(AR2_CFG.weapon.fireRateBoost) or 1, 1, 1.2)), 3)
+ end
+end
 function AR2_volleyApply()
  local item = AR2_volleyOuterItem()
  if not item then return end
@@ -10258,6 +10357,7 @@ task.spawn(function()
  while AR2_volleyEnv.AR2_VOLLEY_GEN == mine do
  task.wait(0.25)
  pcall(AR2_volleyApply)
+ pcall(AR2_fireRateApply)
  end
 end)
 function AR2_rageBotStep()
@@ -13867,13 +13967,17 @@ function AR2_tpTravelTo(destPos, label)
  r.AssemblyLinearVelocity = (dt > 0) and (delta.Unit * (step / dt)) or Vector3.zero
  end)
  end
- if anchored then
+ if not AR2_hgActive then
  pcall(function()
- local c = AR2_LocalPlayer.Character
- local r = c and c:FindFirstChild("HumanoidRootPart")
- if r then r.Anchored = false end
+ local c2 = AR2_LocalPlayer.Character
+ local r2 = c2 and c2:FindFirstChild("HumanoidRootPart")
+ if r2 then
+ r2.Anchored = false
+ r2.AssemblyLinearVelocity = Vector3.zero
+ r2.AssemblyAngularVelocity = Vector3.zero
+ end
  end)
- if AR2_CFG.misc.autoResume then pcall(AR2_legalResume, 0.4) end
+ if anchored and AR2_CFG.misc.autoResume then pcall(AR2_legalResume, 0.4) end
  end
  if AR2_CFG.tp.travelFly and not wasFly then pcall(AR2_setFly, false) end
  AR2_tpTravel.active = false
@@ -13884,12 +13988,35 @@ end
 function AR2_tpStopTravel()
  AR2_tpTravel.active = false
  AR2_tpTravel.note   = "stopped"
+ if AR2_hgActive then return true, "stopped (high ghost still holding)" end
  pcall(function()
  local c = AR2_LocalPlayer.Character
  local r = c and c:FindFirstChild("HumanoidRootPart")
- if r then r.Anchored = false end
+ if r then
+ r.Anchored = false
+ r.AssemblyLinearVelocity = Vector3.zero
+ r.AssemblyAngularVelocity = Vector3.zero
+ end
  end)
  return true, "stopped"
+end
+function AR2_unstickAnchor()
+ AR2_tpTravel.active = false
+ AR2_hgActive = false
+ AR2_CFG.misc.highGhost = false
+ local n = 0
+ local c = AR2_LocalPlayer.Character
+ if not c then return false, "no character" end
+ for _, d in ipairs(c:GetDescendants()) do
+ if d:IsA("BasePart") and d.Anchored then
+ local ok = pcall(function()
+ d.Anchored = false
+ d.AssemblyLinearVelocity = Vector3.zero
+ end)
+ if ok then n = n + 1 end
+ end
+ end
+ return true, ("unanchored %d part(s)"):format(n)
 end
 function AR2_tpWalkToPlayer()
  local wanted = AR2_CFG.tp.target
@@ -14529,12 +14656,306 @@ function AR2_toggleRespawnTP(enabled)
  local root = char:WaitForChild("HumanoidRootPart", 10)
  if not (hum and root) then return end
  if hum.Health <= 0 then hum.HealthChanged:Wait() end
+ local waitUntil = os.clock() + 5
+ while os.clock() < waitUntil do
+ local ok, anchored = pcall(function() return root.Anchored end)
+ if not ok or anchored == false then break end
+ task.wait(0.05)
+ end
  task.wait(AR2_CFG.tp.respawnDelay or 0.6)
  if not AR2_respawnTP then return end
+ if not AR2_LocalPlayer.Character or AR2_LocalPlayer.Character ~= char then
+ return
+ end
  local ok, why = AR2_respawnTPDestination()
  AR2_notify((ok and "respawn TP -> " or "respawn TP failed: ") .. tostring(why), 4)
  end)
  end)
+end
+AR2_hgActive   = false
+AR2_hgTarget   = nil
+AR2_hgBase     = nil
+AR2_hgConn     = nil
+AR2_hgGrace    = 0
+AR2_hgDrift    = 0
+function AR2_highGhostRoot()
+ local c = AR2_LocalPlayer.Character
+ return c and c:FindFirstChild("HumanoidRootPart") or nil
+end
+function AR2_highGhostRelease(why)
+ AR2_hgActive = false
+ if AR2_hgConn then
+ pcall(function() AR2_hgConn:Disconnect() end)
+ AR2_hgConn = nil
+ end
+ local c = AR2_LocalPlayer.Character
+ if c then
+ for _, d in ipairs(c:GetDescendants()) do
+ if d:IsA("BasePart") then pcall(function() d.Anchored = false end) end
+ end
+ end
+ if why then AR2_notify("high ghost off (" .. why .. ")", 3) end
+end
+function AR2_highGhostStep()
+ if not AR2_hgActive or not AR2_hgTarget then return end
+ local c = AR2_LocalPlayer.Character
+ if not c then return end
+ local hum = c:FindFirstChildOfClass("Humanoid")
+ if not hum or hum.Health <= 0 then return end
+ local r = c:FindFirstChild("HumanoidRootPart")
+ if not r then return end
+ if not r.Anchored then pcall(function() r.Anchored = true end) end
+ local drift = (r.Position - AR2_hgTarget).Magnitude
+ if os.clock() >= AR2_hgGrace and drift > AR2_hgDrift then AR2_hgDrift = drift end
+ if drift > 0.5 then
+ pcall(function()
+ r.CFrame = CFrame.new(AR2_hgTarget)
+ r.AssemblyLinearVelocity = Vector3.zero
+ end)
+ end
+end
+function AR2_highGhostRelift()
+ local r = AR2_highGhostRoot()
+ if not r then return false end
+ local alt = math.clamp(tonumber(AR2_CFG.misc.ghostAlt) or 1400, 1300, 20000)
+ AR2_hgBase   = AR2_hgBase or r.Position
+ AR2_hgTarget = Vector3.new(AR2_hgBase.X, AR2_hgBase.Y + alt, AR2_hgBase.Z)
+ AR2_hgGrace  = os.clock() + 1
+ AR2_hgDrift  = 0
+ pcall(function()
+ r.Anchored = true
+ r.CFrame = CFrame.new(AR2_hgTarget)
+ end)
+ return true
+end
+function AR2_setHighGhost(on)
+ AR2_CFG.misc.highGhost = on and true or false
+ if not on then
+ local base = AR2_hgBase
+ AR2_highGhostRelease(nil)
+ local r = AR2_highGhostRoot()
+ if r and base then
+ pcall(function() r.CFrame = CFrame.new(base + Vector3.new(0, 5, 0)) end)
+ end
+ AR2_hgBase = nil
+ if AR2_CFG.misc.ghostRender then
+ pcall(AR2_setForceRender, false)
+ end
+ AR2_notify("high ghost off -- you are visible again", 4)
+ return
+ end
+ local r = AR2_highGhostRoot()
+ if not r then
+ AR2_CFG.misc.highGhost = false
+ AR2_notify("high ghost needs a character", 4)
+ return
+ end
+ AR2_hgBase = r.Position
+ AR2_hgActive = true
+ AR2_highGhostRelift()
+ if not AR2_hgConn then
+ AR2_hgConn = AR2_RunService.Heartbeat:Connect(function()
+ pcall(AR2_highGhostStep)
+ end)
+ end
+ if AR2_CFG.misc.ghostRender then
+ pcall(AR2_setForceRender, true)
+ end
+ AR2_notify(("high ghost on -- %d studs up, past the 1250 cull")
+ :format(math.floor((AR2_CFG.misc.ghostAlt or 1400))), 5)
+end
+function AR2_highGhostStatus()
+ local r = AR2_highGhostRoot()
+ local parts = {}
+ parts[#parts+1] = "high ghost: " .. tostring(AR2_hgActive)
+ if r then
+ parts[#parts+1] = ("height %.0f"):format(r.Position.Y)
+ parts[#parts+1] = ("drift %.1f"):format(AR2_hgDrift)
+ parts[#parts+1] = "anchored " .. tostring(r.Anchored)
+ end
+ local nearest, nd = nil, math.huge
+ for _, p in ipairs(AR2_Players:GetPlayers()) do
+ if p ~= AR2_LocalPlayer and p.Character then
+ local pr = p.Character:FindFirstChild("HumanoidRootPart")
+ if pr and r then
+ local d = (pr.Position - r.Position).Magnitude
+ if d < nd then nd, nearest = d, p end
+ end
+ end
+ end
+ if nearest then
+ parts[#parts+1] = ("nearest %s %.0f studs -- %s")
+ :format(nearest.Name, nd, nd > 1250 and "CANNOT see you" or "CAN SEE YOU")
+ else
+ parts[#parts+1] = "no players loaded"
+ end
+ return table.concat(parts, " | ")
+end
+do
+ local lp = AR2_LocalPlayer
+ lp.CharacterRemoving:Connect(function()
+ if AR2_hgActive then AR2_highGhostRelease("died") end
+ AR2_CFG.misc.highGhost = false
+ end)
+ lp.CharacterAdded:Connect(function(c)
+ AR2_highGhostRelease(nil)
+ AR2_CFG.misc.highGhost = false
+ AR2_hgBase = nil
+ task.spawn(function()
+ local hum = c:WaitForChild("Humanoid", 10)
+ if hum then
+ hum.Died:Connect(function()
+ if AR2_hgActive then AR2_highGhostRelease("died") end
+ AR2_CFG.misc.highGhost = false
+ end)
+ end
+ end)
+ end)
+end
+AR2_frOn = false
+AR2_frPatched = setmetatable({}, { __mode = "k" })
+AR2_frLoop = nil
+function AR2_animatorsLib()
+ local ok, lib = pcall(function()
+ local fw = require(AR2_ReplicatedFirst:WaitForChild("Framework", 10))
+ return (fw.Classes and fw.Classes.Animators)
+ or (fw.Client and fw.Client.Classes and fw.Client.Classes.Animators)
+ end)
+ if ok and type(lib) == "table" then return lib end
+ return nil
+end
+local AR2_FR_FALSE = function() return false end
+function AR2_forceRenderSweep()
+ if not AR2_frOn then return end
+ local lib = AR2_animatorsLib()
+ if not lib or type(lib.find) ~= "function" then return end
+ local bin = Workspace:FindFirstChild("Characters")
+ if not bin then return end
+ for _, model in ipairs(bin:GetChildren()) do
+ if model ~= AR2_LocalPlayer.Character then
+ local ok, rec = pcall(lib.find, model)
+ if ok and type(rec) == "table" and type(rec.InvisibleCases) == "table" then
+ local cases = rec.InvisibleCases
+ if cases.WorldInvis ~= AR2_FR_FALSE then
+ AR2_frPatched[rec] = AR2_frPatched[rec] or cases.WorldInvis
+ pcall(function() cases.WorldInvis = AR2_FR_FALSE end)
+ end
+ end
+ end
+ end
+end
+function AR2_setForceRender(on)
+ AR2_frOn = on and true or false
+ if AR2_frOn then
+ pcall(AR2_forceRenderSweep)
+ if not AR2_frLoop then
+ AR2_frLoop = task.spawn(function()
+ while AR2_frOn do
+ pcall(AR2_forceRenderSweep)
+ task.wait(1)
+ end
+ AR2_frLoop = nil
+ end)
+ end
+ AR2_notify("force render on -- players draw at any distance", 4)
+ else
+ local lib = AR2_animatorsLib()
+ if lib then
+ for rec, orig in pairs(AR2_frPatched) do
+ pcall(function()
+ if type(rec.InvisibleCases) == "table" then
+ rec.InvisibleCases.WorldInvis = orig
+ end
+ end)
+ end
+ end
+ AR2_frPatched = setmetatable({}, { __mode = "k" })
+ AR2_notify("force render off", 3)
+ end
+end
+AR2_rdOrig = AR2_rdOrig or nil
+AR2_rdOverride = nil
+function AR2_setRenderUnlock(on)
+ local ok, World = pcall(function()
+ return require(AR2_ReplicatedFirst:WaitForChild("Framework", 10)).Libraries.World
+ end)
+ if not ok or type(World) ~= "table" then
+ AR2_notify("render distance: Libraries.World unreachable", 4)
+ return false
+ end
+ if not AR2_rdOrig then
+ local orig = rawget(World, "GetDistance")
+ if type(orig) ~= "function" then
+ AR2_notify("render distance: GetDistance missing", 4)
+ return false
+ end
+ AR2_rdOrig = orig
+ local hooked = pcall(function()
+ rawset(World, "GetDistance", function(self, name, ...)
+ if AR2_rdOverride and tostring(name) == "ElementCore" then
+ return AR2_rdOverride
+ end
+ return AR2_rdOrig(self, name, ...)
+ end)
+ end)
+ if not hooked then
+ AR2_rdOrig = nil
+ AR2_notify("render distance: could not hook GetDistance", 4)
+ return false
+ end
+ end
+ if on then
+ AR2_rdOverride = math.clamp(tonumber(AR2_CFG.visuals.renderDist) or 20000, 1250, 200000)
+ AR2_notify("render distance -> " .. tostring(AR2_rdOverride), 3)
+ else
+ AR2_rdOverride = nil
+ AR2_notify("render distance -> default (1250)", 3)
+ end
+ return true
+end
+function AR2_netLib()
+ local ok, net = pcall(function()
+ return require(AR2_ReplicatedFirst:WaitForChild("Framework", 10)).Libraries.Network
+ end)
+ if ok and type(net) == "table" then return net end
+ return nil
+end
+function AR2_forceReset()
+ local net = AR2_netLib()
+ if not net then return false, "network library unreachable" end
+ if not AR2_LocalPlayer.Character then return false, "already dead" end
+ local ok = pcall(function() net:Send("Player Character Reset") end)
+ return ok, ok and "reset sent" or "send failed"
+end
+function AR2_forceSpawn(timeout)
+ local net = AR2_netLib()
+ if not net then return false, "network library unreachable" end
+ if AR2_LocalPlayer.Character then return false, "alive -- no-op while alive" end
+ local deadline = os.clock() + (tonumber(timeout) or 6)
+ local tries, nextSend = 0, 0
+ while os.clock() < deadline do
+ if AR2_LocalPlayer.Character then
+ return true, ("spawned after %d request(s)"):format(tries)
+ end
+ if os.clock() >= nextSend then
+ tries = tries + 1
+ pcall(function() net:Send("Spawn In Character") end)
+ nextSend = os.clock() + 0.5
+ end
+ task.wait(0.05)
+ end
+ return false, ("no character after %d request(s)"):format(tries)
+end
+function AR2_instantRespawn()
+ if AR2_LocalPlayer.Character then
+ local ok, why = AR2_forceReset()
+ if not ok then return false, why end
+ local deadline = os.clock() + 3
+ while os.clock() < deadline and AR2_LocalPlayer.Character do task.wait(0.05) end
+ if AR2_LocalPlayer.Character then return false, "reset did not take" end
+ end
+ task.wait(0.3)
+ return AR2_forceSpawn(8)
 end
 AR2_noclipConn = nil
 local noclipSaved   = {}
@@ -20013,6 +20434,23 @@ function AR2_buildUI()
  addSlider(aimbotSection,"Smoothing",AR2_CFG.aim,"smooth",3,60)
  addToggle(aimbotSection,"Wall Check",AR2_CFG.aim,"wallCheck")
  addToggle(aimbotSection,"Show FOV",AR2_CFG.aim,"showFov")
+ local skySection = combatTab:AddSection({Name="Sky Box"})
+ skySection:AddLabel("Above 1250 and nobody can draw you")
+ addToggle(skySection,"Enabled",AR2_CFG.misc,"highGhost",function(v)
+ AR2_setHighGhost(v)
+ end)
+ addSlider(skySection,"Altitude",AR2_CFG.misc,"ghostAlt",1300,6000,50,function(v)
+ if AR2_CFG.misc.highGhost then AR2_highGhostRelift() end
+ end)
+ addToggle(skySection,"  └ Force Render Players With It",AR2_CFG.misc,"ghostRender")
+ addToggle(skySection,"Force Render (standalone)",AR2_CFG.misc,"forceRender",function(v)
+ AR2_setForceRender(v)
+ end)
+ skySection:AddButton({Name="Status",Callback=function()
+ local t = AR2_highGhostStatus()
+ print(t)
+ AR2_notify(t, 6)
+ end})
  local silentAimSection = combatTab:AddSection({Name="Silent Aim",Position="right"})
  addToggle(silentAimSection,"Enabled",AR2_CFG.magicAim,"on",function(v) AR2_magicUpdate() end,"silentAim")
  addSlider(silentAimSection,"Aim Radius (degrees)",AR2_CFG.magicAim,"maxBend",1,180)
@@ -20155,6 +20593,16 @@ function AR2_buildUI()
  addSlider(weaponModsSection,"  └ Replays Per Second",AR2_CFG.melee,"swingRate",1,20,1)
  addToggle(weaponModsSection,"Burst Volley (2 shots)",AR2_CFG.weapon,"volley")
  addSlider(weaponModsSection,"Burst Gap (% of legal rate)",AR2_CFG.weapon,"volleyGap",60,250)
+ weaponModsSection:AddLabel("! SEMI-AUTO GUNS MAY CAUSE KICKS WITH INCREASED FIRE RATE")
+ addToggle(weaponModsSection,"Fire Rate Unlock",AR2_CFG.weapon,"fireRateUnlock",function(v)
+ if v then
+ AR2_notify("fire rate unlock on -- SEMI-AUTO GUNS MAY CAUSE KICKS "
+ .. "with an increased rate. Autos are safer.", 8)
+ end
+ AR2_setFireRateUnlock(v)
+ end)
+ addSlider(weaponModsSection,"  └ Multiplier (1.20 max)",AR2_CFG.weapon,"fireRateBoost",1,1.2,0.01,
+ function(v) if AR2_CFG.weapon.fireRateUnlock then pcall(AR2_fireRateApply) end end)
  addToggle(weaponModsSection,"All Fire Modes",AR2_CFG.weapon,"allFireModes",function(v) AR2_applyAllFireModes(v) end)
  addToggle(weaponModsSection,"Instant Reload",AR2_CFG.weapon,"instantReload",function(v) setInstantReloadEnabled(v) end)
  addToggle(weaponModsSection,"Auto Reload",AR2_CFG.weapon,"autoReload",function(v) AR2_setAutoReload(v) end)
@@ -20166,12 +20614,10 @@ function AR2_buildUI()
  end
  end)
  addToggle(bulletSection,"Spread Compensation",AR2_CFG.weapon,"spreadComp")
- addToggle(bulletSection,"Only Unlock Guns That Are Already Auto",
+ addToggle(bulletSection,"  └ Skip Semi-Only Guns (not needed)",
  AR2_CFG.weapon,"fireModesSafe",function(v)
- if not v then
- AR2_notify("forcing auto on semi guns -- the server knows their "
- .. "real fire profile, this is a common kick", 8)
- end
+ AR2_notify(v and "semi-only guns will be skipped"
+ or "all guns unlocked", 4)
  if AR2_CFG.weapon.allFireModes then pcall(AR2_applyAllFireModes, true) end
  end)
  pcall(function()
@@ -20313,6 +20759,10 @@ function AR2_buildUI()
  addSlider(tpDashSection,"Distance",AR2_CFG.misc,"tpDashStuds",5,200,function(v) AR2_CFG.misc.tpDashStuds=v end)
  addSlider(tpDashSection,"Interval (s)",AR2_CFG.misc,"tpDashInterval",0.1,5,0.1,function(v) AR2_CFG.misc.tpDashInterval=v end)
  addSlider(tpDashSection,"Vertical Offset",AR2_CFG.misc,"tpDashVert",0,5,0.1,function(v) AR2_CFG.misc.tpDashVert=v end)
+ movementTab:AddSection({Name="Stuck?"}):AddButton({Name="Unanchor Everything",Callback=function()
+ local ok, why = AR2_unstickAnchor()
+ AR2_notify(tostring(why), 4)
+ end})
  local flySection = movementTab:AddSection({Name="Fly",Position="right"})
  addToggle(flySection,"Legal-Speed Reporting (anti-rubberband)",AR2_CFG.misc,"flySmooth",function(v)
  AR2_reportClampReset()
@@ -20500,26 +20950,46 @@ function AR2_buildUI()
  AR2_tpStopTravel()
  Notif.new({Title="DROIDWARE",Content="Stopped",Duration=3})
  end})
- addToggle(playerTPSection,"INSTANT TP",AR2_CFG.tp,"instant",function(v)
- AR2_notify(v and "instant TP on -- one write, no flight"
- or  "instant TP off -- back to the gradual path", 4)
- end)
- addSlider(playerTPSection,"  └ Re-assert Frames",AR2_CFG.tp,"instantFrames",0,15,1)
- addToggle(playerTPSection,"Use Fly While Travelling",AR2_CFG.tp,"travelFly")
- addToggle(playerTPSection,"Anchor While Travelling",AR2_CFG.tp,"travelAnchor")
- addSlider(playerTPSection,"Travel Speed",AR2_CFG.tp,"travelSpeed",100,30000,250)
- addSlider(playerTPSection,"Max Step / Frame",AR2_CFG.tp,"travelStep",10,800,10)
  playerTPSection:AddButton({Name="Refresh Player List",Callback=function()
  AR2_refreshTPTargets(true)
  end})
  playerTPSection:AddButton({Name="Open Map",Callback=function() AR2_tp.toggleMap(true) end})
- addToggle(playerTPSection,"Respawn TP",AR2_CFG.tp,"respawnTP",function(v) AR2_toggleRespawnTP(v) end)
- addToggle(playerTPSection,"  └ To Death Spot",AR2_CFG.tp,"respawnToDeath",function(v)
+ local travelSection = teleportTab:AddSection({Name="Travel Mode"})
+ addToggle(travelSection,"Instant",AR2_CFG.tp,"instant",function(v)
+ AR2_notify(v and "instant TP on -- one write, no flight"
+ or  "instant TP off -- back to the gradual path", 4)
+ end)
+ addSlider(travelSection,"  └ Re-assert Frames",AR2_CFG.tp,"instantFrames",0,15,1)
+ addToggle(travelSection,"Fly While Travelling",AR2_CFG.tp,"travelFly")
+ addToggle(travelSection,"Anchor While Travelling",AR2_CFG.tp,"travelAnchor")
+ addSlider(travelSection,"Speed",AR2_CFG.tp,"travelSpeed",100,30000,250)
+ addSlider(travelSection,"Max Step / Frame",AR2_CFG.tp,"travelStep",10,800,10)
+ local respawnSection = teleportTab:AddSection({Name="Death & Respawn",Position="right"})
+ respawnSection:AddLabel("No death screen")
+ respawnSection:AddButton({Name="Reset + Respawn",Callback=function()
+ task.spawn(function()
+ local ok, why = AR2_instantRespawn()
+ AR2_notify((ok and "respawned -- " or "respawn failed: ") .. tostring(why), 4)
+ end)
+ end})
+ respawnSection:AddButton({Name="Reset Only",Callback=function()
+ local ok, why = AR2_forceReset()
+ AR2_notify((ok and "reset -- " or "reset failed: ") .. tostring(why), 4)
+ end})
+ respawnSection:AddButton({Name="Spawn In (while dead)",Callback=function()
+ task.spawn(function()
+ local ok, why = AR2_forceSpawn(8)
+ AR2_notify((ok and "spawned -- " or "spawn failed: ") .. tostring(why), 4)
+ end)
+ end})
+ respawnSection:AddLabel("Auto-TP after respawn")
+ addToggle(respawnSection,"Respawn TP",AR2_CFG.tp,"respawnTP",function(v) AR2_toggleRespawnTP(v) end)
+ addToggle(respawnSection,"  └ To Death Spot",AR2_CFG.tp,"respawnToDeath",function(v)
  AR2_notify(v and "respawn TP will take you back to where you died"
  or  "respawn TP will take you to the selected player", 4)
  end)
- addSlider(playerTPSection,"  └ Delay (s)",AR2_CFG.tp,"respawnDelay",0,3,0.1)
- playerTPSection:AddButton({Name="TP To Death Spot",Callback=function()
+ addSlider(respawnSection,"  └ Extra Delay (s)",AR2_CFG.tp,"respawnDelay",0,3,0.1)
+ respawnSection:AddButton({Name="TP To Death Spot",Callback=function()
  local ok, why = AR2_tpToDeathSpot()
  Notif.new({Title="DROIDWARE",
  Content=(ok and "Travelling to " or "Can't: ")..tostring(why),Duration=5})
@@ -20613,18 +21083,25 @@ function AR2_buildUI()
  addSlider(radarSection,"Refresh Rate (Hz)",AR2_CFG.radar,"hz",2,60,1)
  addToggle(radarSection,"Avatar Icons",AR2_CFG.radar,"avatars")
  addSlider(radarSection,"  └ Icon Size",AR2_CFG.radar,"avatarSize",10,48,1)
- local eventSection = radarTab:AddSection({Name="Event Zombie Radar"})
- addToggle(eventSection,"Enabled",AR2_CFG.events,"on",function(v)
+ local radarZSection = radarTab:AddSection({Name="Radar Zombies"})
+ addToggle(radarZSection,"Enabled",AR2_CFG.radar.zombies,"on")
+ addToggle(radarZSection,"  └ Rare Only",AR2_CFG.radar.zombies,"rareOnly")
+ addToggle(radarZSection,"  └ Events Only (gold)",AR2_CFG.radar.zombies,"eventsOnly")
+ addToggle(radarZSection,"  └ Names",AR2_CFG.radar.zombies,"names")
+ addSlider(radarZSection,"  └ Range",AR2_CFG.radar.zombies,"range",500,10000,100)
+ addSlider(radarZSection,"  └ Max Drawn",AR2_CFG.radar.zombies,"max",10,150,5)
+ radarZSection:AddLabel("Event clusters")
+ addToggle(radarZSection,"Show Clusters",AR2_CFG.events,"on",function(v)
  if v and not AR2_radar.running then pcall(AR2_radar.start) end
  pcall(AR2_esp.update)
  end)
- addSlider(eventSection,"Cluster Radius",AR2_CFG.events,"clusterRadius",50,600,10)
- addSlider(eventSection,"Min Zombies",AR2_CFG.events,"minZombies",1,10,1)
- addToggle(eventSection,"Names",AR2_CFG.events,"names")
- addToggle(eventSection,"World ESP Too",AR2_CFG.events,"esp",function(v) AR2_esp.update() end)
- addSlider(eventSection,"Range",AR2_CFG.events,"range",1000,12000,250)
- addSlider(eventSection,"Max Drawn",AR2_CFG.events,"maxDrawn",1,40,1)
- eventSection:AddButton({Name="List Clusters Now",Callback=function()
+ addToggle(radarZSection,"  └ Cluster Names",AR2_CFG.events,"names")
+ addToggle(radarZSection,"  └ World ESP Too",AR2_CFG.events,"esp",function(v) AR2_esp.update() end)
+ addSlider(radarZSection,"  └ Cluster Radius",AR2_CFG.events,"clusterRadius",50,600,10)
+ addSlider(radarZSection,"  └ Min Zombies",AR2_CFG.events,"minZombies",1,10,1)
+ addSlider(radarZSection,"  └ Cluster Range",AR2_CFG.events,"range",1000,12000,250)
+ addSlider(radarZSection,"  └ Max Clusters",AR2_CFG.events,"maxDrawn",1,40,1)
+ radarZSection:AddButton({Name="List Clusters Now",Callback=function()
  local l = AR2_api.events()
  local lines = { ("== EVENT ZOMBIE CLUSTERS (%d) =="):format(#l) }
  for i2, e in ipairs(l) do
@@ -20641,13 +21118,6 @@ function AR2_buildUI()
  pcall(function() (setclipboard or toclipboard)(t) end)
  AR2_notify(("%d clusters"):format(#l), 5)
  end})
- local radarZSection = radarTab:AddSection({Name="Radar Zombies"})
- addToggle(radarZSection,"Enabled",AR2_CFG.radar.zombies,"on")
- addToggle(radarZSection,"Rare Only",AR2_CFG.radar.zombies,"rareOnly")
- addToggle(radarZSection,"Events Only (gold)",AR2_CFG.radar.zombies,"eventsOnly")
- addToggle(radarZSection,"Names",AR2_CFG.radar.zombies,"names")
- addSlider(radarZSection,"Range",AR2_CFG.radar.zombies,"range",500,10000,100)
- addSlider(radarZSection,"Max Drawn",AR2_CFG.radar.zombies,"max",10,150,5)
  addToggle(radarSection,"Show Weapon",AR2_CFG.radar,"weapon",function(v) AR2_CFG.radar.weapon=v end)
  addToggle(radarSection,"Show Distance",AR2_CFG.radar,"dist",function(v) AR2_CFG.radar.dist=v end)
  local radarVehicleSection = radarTab:AddSection({Name="Radar Vehicles",Position="right"})
@@ -21425,10 +21895,15 @@ function AR2_installNetGuard()
  AR2_notify("state report captured -- copied to clipboard", 8)
  end
  if AR2_POSITION_MSGS[msg]
- and (AR2_ghostOn or AR2_desyncOn or AR2_CFG.misc.flySmooth
+ and (AR2_ghostOn
+ or (AR2_CFG.misc.stateFlip and AR2_CFG.misc.stateFlip ~= "Off")
+ or AR2_desyncOn or AR2_CFG.misc.flySmooth
  or (AR2_CFG.misc.antiAim and AR2_CFG.misc.antiAim.look)) then
  local a = table.pack(...)
  local args, n = a, a.n
+ if AR2_CFG.misc.stateFlip and AR2_CFG.misc.stateFlip ~= "Off" then
+ args, n = AR2_stateFlipRewrite(args, n)
+ end
  if AR2_ghostOn then
  args, n = AR2_ghostRewrite(args, n)
  elseif AR2_desyncOn then
@@ -22646,6 +23121,68 @@ function AR2_flySmoothStatus()
 end
 AR2_ghostOn       = false
 AR2_ghostRewrites = 0
+AR2_stateFlipMode  = "Off"
+AR2_stateFlipIdx   = 1
+AR2_stateFlips     = 0
+AR2_stateBoolCount = 0
+function AR2_stateFlipRewrite(args, n)
+ local mode = tostring(AR2_CFG.misc.stateFlip or "Off")
+ if mode == "Off" then return args, n end
+ local idx = 0
+ local want = math.max(1, math.floor(tonumber(AR2_CFG.misc.stateFlipIdx) or 1))
+ local flipped = false
+ for i = 1, n do
+ if type(args[i]) == "boolean" then
+ idx = idx + 1
+ if mode == "All True" then
+ args[i] = true; flipped = true
+ elseif mode == "All False" then
+ args[i] = false; flipped = true
+ elseif mode == "Invert" then
+ args[i] = not args[i]; flipped = true
+ elseif mode == "One Index" and idx == want then
+ args[i] = not args[i]; flipped = true
+ end
+ end
+ end
+ AR2_stateBoolCount = idx
+ if flipped then AR2_stateFlips = (AR2_stateFlips or 0) + 1 end
+ return args, n
+end
+function AR2_setStateFlip(mode)
+ AR2_CFG.misc.stateFlip = tostring(mode or "Off")
+ AR2_stateFlips = 0
+ if AR2_CFG.misc.stateFlip ~= "Off" then
+ if not AR2_netGuardInstalled and type(AR2_installNetGuard) == "function" then
+ AR2_installNetGuard()
+ end
+ if not AR2_netGuardInstalled then
+ AR2_CFG.misc.stateFlip = "Off"
+ AR2_notify("needs the net guard, which did not install", 6)
+ return false
+ end
+ AR2_notify("state flip: " .. AR2_CFG.misc.stateFlip
+ .. " -- ask someone if you still render", 7)
+ end
+ return true
+end
+function AR2_stateFlipStatus()
+ return table.concat({
+ "== STATE REPORT FLIP ==",
+ ("  mode        : %s"):format(tostring(AR2_CFG.misc.stateFlip)),
+ ("  booleans in packet: %d"):format(AR2_stateBoolCount or 0),
+ ("  packets altered   : %d"):format(AR2_stateFlips or 0),
+ ("  one-index target  : %d"):format(
+ math.floor(tonumber(AR2_CFG.misc.stateFlipIdx) or 1)),
+ ("  net guard   : %s"):format(tostring(AR2_netGuardInstalled)),
+ "",
+ "  0 altered means the packet was never matched -- tell me.",
+ "  Run All True first: one test says whether ANY flag hides you.",
+ "  If it does, switch to One Index and walk 1..N to find which.",
+ "  Expect side effects -- a flag may also mean downed or seated.",
+ }, "\n")
+end
+AR2_LOD_CUTOFF_SEEN = 300
 function AR2_ghostOffset()
  local mode = tostring(AR2_CFG.misc.ghostDir or "Up")
  local d    = math.clamp(tonumber(AR2_CFG.misc.ghostDist) or 2000, 50, 20000)
@@ -22718,18 +23255,18 @@ function AR2_appBadName()
 end
 AR2_hideFields = {}
 AR2_hideItems  = {}
-local HIDE_HINTS = { "hide", "hidden", "conceal", "remove", "cull", "invis",
+HIDE_HINTS = { "hide", "hidden", "conceal", "remove", "cull", "invis",
  "noshow", "suppress", "mask" }
-local BODY_HINTS = { "head", "torso", "arm", "leg", "hand", "foot", "body",
+BODY_HINTS = { "head", "torso", "arm", "leg", "hand", "foot", "body",
  "upper", "lower", "limb" }
-local function looksHide(key)
+function looksHide(key)
  local k = string.lower(tostring(key))
  for _, h in ipairs(HIDE_HINTS) do
  if string.find(k, h, 1, true) then return true end
  end
  return false
 end
-local function mentionsBody(v)
+function mentionsBody(v)
  local t = type(v)
  if t == "string" then
  local l = string.lower(v)
@@ -22799,6 +23336,267 @@ function AR2_eventFindByName(word)
  else
  for _, h in ipairs(hits) do L[#L+1] = h end
  end
+ local txt = table.concat(L, "\n")
+ print(txt)
+ pcall(function() (setclipboard or toclipboard)(txt) end)
+ return txt
+end
+AR2_itemDumpWord = "Bone"
+AR2_animProbe = { hooked = false, calls = {}, skipped = 0, built = 0 }
+function AR2_animatorsClass()
+ local c
+ pcall(function()
+ local rs = game:GetService("ReplicatedStorage")
+ local m = rs:FindFirstChild("Client")
+ m = m and m:FindFirstChild("Classes")
+ m = m and m:FindFirstChild("Animators")
+ if m then c = require(m) end
+ end)
+ if type(c) ~= "table" and type(getgc) == "function" then
+ pcall(function()
+ for _, t in ipairs(getgc(true)) do
+ if type(t) == "table" and type(rawget(t, "new")) == "function" then
+ if rawget(t, "stepAnimator") or rawget(t, "StepAnimator") then
+ c = t break
+ end
+ end
+ end
+ end)
+ end
+ return c
+end
+function AR2_bodyPartsProbe()
+ local L = { "== BODYPARTS / ANIMATOR RECORD ==" }
+ local function dumpRec(label, rec)
+ if type(rec) ~= "table" then
+ L[#L+1] = ("  %s: no record"):format(label); return
+ end
+ L[#L+1] = ""
+ L[#L+1] = "  " .. label
+ local keys = {}
+ for k in pairs(rec) do keys[#keys+1] = tostring(k) end
+ table.sort(keys)
+ L[#L+1] = "    keys: " .. table.concat(keys, ", "):sub(1, 300)
+ for _, field in ipairs({ "BodyParts", "LodVisibleCutOff", "Sleeping",
+ "VisibleToCamera", "DistanceToCamera",
+ "IsNetworked", "MotorMap", "InvisibleCases" }) do
+ local v
+ pcall(function() v = rec[field] end)
+ if v ~= nil then
+ if type(v) == "table" then
+ local n, sample = 0, {}
+ for k2, v2 in pairs(v) do
+ n = n + 1
+ if #sample < 8 then
+ sample[#sample+1] = tostring(type(k2) == "string" and k2
+ or (typeof(v2) == "Instance" and v2.Name or v2))
+ end
+ end
+ L[#L+1] = ("    %-18s table[%d]  %s"):format(field, n,
+ table.concat(sample, ", "):sub(1, 90))
+ else
+ L[#L+1] = ("    %-18s %s = %s"):format(field, type(v), tostring(v))
+ end
+ end
+ end
+ end
+ local mine
+ pcall(function()
+ local pc = require(AR2_ReplicatedFirst:WaitForChild("Framework", 10))
+ .Classes.Players.get()
+ mine = pc and (pc.Animator or pc.Animators)
+ end)
+ dumpRec("MINE", mine)
+ pcall(function()
+ local cls = AR2_animatorsClass()
+ local getter = cls and (rawget(cls, "get") or rawget(cls, "find"))
+ if type(getter) ~= "function" then
+ L[#L+1] = ""
+ L[#L+1] = "  Animators.get/find not available for other players"
+ return
+ end
+ local shown = 0
+ for _, e in ipairs(AR2_api.players()) do
+ if shown < 1 and e.model then
+ local ok, rec = pcall(getter, e.model)
+ if not ok then ok, rec = pcall(getter, cls, e.model) end
+ if ok and type(rec) == "table" then
+ shown = 1
+ dumpRec("THEIRS (" .. e.name .. ")", rec)
+ end
+ end
+ end
+ if shown == 0 then
+ L[#L+1] = ""
+ L[#L+1] = "  (no other player's record readable right now)"
+ end
+ end)
+ L[#L+1] = ""
+ L[#L+1] = "  MY CHARACTER'S CHILDREN:"
+ pcall(function()
+ local c = AR2_LocalPlayer.Character
+ for _, ch in ipairs(c:GetChildren()) do
+ L[#L+1] = ("    %-34s %-14s%s"):format(
+ ch.Name:sub(1,34), ch.ClassName,
+ ch:IsA("BasePart") and (" transparency " .. tostring(ch.Transparency)) or "")
+ end
+ end)
+ local txt = table.concat(L, "\n")
+ print(txt)
+ pcall(function() (setclipboard or toclipboard)(txt) end)
+ return txt
+end
+function AR2_animatorDump()
+ local L = { "== ANIMATORS CLASS ==" }
+ local cls = AR2_animatorsClass()
+ if type(cls) ~= "table" then
+ L[#L+1] = "  could not resolve Client.Classes.Animators"
+ local t = table.concat(L, "\n") print(t) return t
+ end
+ local names = {}
+ for k, v in pairs(cls) do names[#names+1] = ("%s (%s)"):format(tostring(k), type(v)) end
+ table.sort(names)
+ L[#L+1] = "  members: " .. table.concat(names, ", ")
+ local fn = rawget(cls, "new")
+ if type(fn) == "function" and type(debug) == "table" then
+ L[#L+1] = ""
+ L[#L+1] = "  string constants inside new() -- these are the fields and"
+ L[#L+1] = "  flags it reads while deciding what to build:"
+ pcall(function()
+ local seen = {}
+ for _, c2 in ipairs(debug.getconstants(fn)) do
+ if type(c2) == "string" and #c2 > 2 and not seen[c2] then
+ seen[c2] = true
+ L[#L+1] = "    " .. c2
+ end
+ end
+ end)
+ pcall(function()
+ local info = debug.getinfo(fn)
+ L[#L+1] = ("  new(): %s params, %s upvalues")
+ :format(tostring(info.numparams), tostring(info.nups))
+ end)
+ end
+ pcall(function()
+ local rs = game:GetService("ReplicatedStorage")
+ local m = rs:FindFirstChild("Client")
+ m = m and m:FindFirstChild("Abstracts")
+ m = m and m:FindFirstChild("Animators")
+ m = m and m:FindFirstChild("Character")
+ if m then
+ local ch = require(m)
+ if type(ch) == "table" then
+ local n2 = {}
+ for k in pairs(ch) do n2[#n2+1] = tostring(k) end
+ table.sort(n2)
+ L[#L+1] = ""
+ L[#L+1] = "  Abstracts.Animators.Character members:"
+ L[#L+1] = "    " .. table.concat(n2, ", ")
+ end
+ end
+ end)
+ local txt = table.concat(L, "\n")
+ print(txt)
+ pcall(function() (setclipboard or toclipboard)(txt) end)
+ return txt
+end
+function AR2_animatorWatch(seconds)
+ if AR2_animProbe.hooked then return false, "already watching" end
+ if type(hookfunction) ~= "function" then return false, "no hookfunction" end
+ local cls = AR2_animatorsClass()
+ local fn = cls and rawget(cls, "new")
+ if type(fn) ~= "function" then return false, "Animators.new not found" end
+ AR2_animProbe = { hooked = true, calls = {}, skipped = 0, built = 0 }
+ local orig
+ local ok = pcall(function()
+ orig = hookfunction(fn, function(...)
+ local a = table.pack(...)
+ local res = table.pack(orig(...))
+ pcall(function()
+ local who = "?"
+ for i = 1, a.n do
+ if typeof(a[i]) == "Instance" then who = a[i].Name break end
+ if type(a[i]) == "table" and a[i].Name then who = tostring(a[i].Name) break end
+ end
+ if res.n == 0 or res[1] == nil then
+ AR2_animProbe.skipped = AR2_animProbe.skipped + 1
+ if #AR2_animProbe.calls < 30 then
+ AR2_animProbe.calls[#AR2_animProbe.calls+1] =
+ ("SKIPPED %s  (%d args)"):format(who, a.n)
+ end
+ else
+ AR2_animProbe.built = AR2_animProbe.built + 1
+ if #AR2_animProbe.calls < 30 then
+ AR2_animProbe.calls[#AR2_animProbe.calls+1] =
+ ("built   %s  (%d args)"):format(who, a.n)
+ end
+ end
+ end)
+ return table.unpack(res, 1, res.n)
+ end)
+ end)
+ if not ok then AR2_animProbe.hooked = false return false, "hook failed" end
+ task.spawn(function()
+ task.wait(tonumber(seconds) or 25)
+ local rf = (type(restorefunction) == "function" and restorefunction)
+ if rf then pcall(rf, fn) else pcall(function() hookfunction(fn, orig) end) end
+ AR2_animProbe.hooked = false
+ local L = { "== ANIMATOR WATCH ==",
+ ("  built: %d   skipped: %d"):format(AR2_animProbe.built, AR2_animProbe.skipped), "" }
+ for _, l in ipairs(AR2_animProbe.calls) do L[#L+1] = "  " .. l end
+ if #AR2_animProbe.calls == 0 then
+ L[#L+1] = "  new() was never called -- nobody spawned in that window."
+ L[#L+1] = "  Run it again while a player respawns near you."
+ end
+ if not rf then
+ L[#L+1] = ""
+ L[#L+1] = "  no restorefunction on this executor -- REJOIN before relying"
+ L[#L+1] = "  on characters building correctly."
+ end
+ local txt = table.concat(L, "\n")
+ print(txt)
+ pcall(function() (setclipboard or toclipboard)(txt) end)
+ end)
+ return true, "watching Animators.new"
+end
+function AR2_dumpItemsByName(word)
+ word = tostring(word or AR2_itemDumpWord or "")
+ local needle = word:lower()
+ local fw
+ pcall(function() fw = require(AR2_ReplicatedFirst:WaitForChild("Framework", 10)) end)
+ local id = fw and fw.Configs and fw.Configs.ItemData
+ if type(id) ~= "table" then return "ItemData unreachable" end
+ local L = { ("== ITEMS MATCHING \"%s\" =="):format(word) }
+ local shown = 0
+ for name, data in pairs(id) do
+ if shown < 6 and string.find(name:lower(), needle, 1, true)
+ and type(data) == "table" then
+ shown = shown + 1
+ L[#L+1] = ""
+ L[#L+1] = "  " .. name
+ local n = 0
+ for k, v in pairs(data) do
+ n = n + 1
+ if n <= 30 then
+ local vs
+ if type(v) == "table" then
+ local parts = {}
+ for k2, v2 in pairs(v) do
+ parts[#parts+1] = tostring(type(k2) == "string" and k2 or v2)
+ if #parts >= 8 then break end
+ end
+ vs = "{" .. table.concat(parts, ",") .. "}"
+ else
+ vs = tostring(v)
+ end
+ L[#L+1] = ("    %-26s %-8s %s"):format(
+ tostring(k):sub(1,26), type(v), vs:sub(1,58))
+ end
+ end
+ if n > 30 then L[#L+1] = ("    ... +%d more fields"):format(n - 30) end
+ end
+ end
+ if shown == 0 then L[#L+1] = "  no item matched that name" end
  local txt = table.concat(L, "\n")
  print(txt)
  pcall(function() (setclipboard or toclipboard)(txt) end)
@@ -22884,6 +23682,92 @@ function AR2_wearAllHiders()
  end
  end
  return worn > 0, ("tried %d, sent %d"):format(tried, worn)
+end
+function AR2_myEquipmentFolder()
+ local c = AR2_LocalPlayer.Character
+ if not c then return nil end
+ return c:FindFirstChild("Equipment")
+ or c:FindFirstChild("Equipped")
+ or c:FindFirstChild("Cosmetics")
+end
+function AR2_equipmentDump()
+ local L = { "== WHAT THE SERVER THINKS I AM WEARING ==" }
+ local f = AR2_myEquipmentFolder()
+ if not f then
+ L[#L+1] = "  no Equipment folder on your character."
+ L[#L+1] = "  Children of your character instead:"
+ local c = AR2_LocalPlayer.Character
+ if c then
+ for _, ch in ipairs(c:GetChildren()) do
+ L[#L+1] = ("    %-30s %s"):format(ch.Name:sub(1,30), ch.ClassName)
+ end
+ end
+ else
+ L[#L+1] = ("  folder: %s  (%d items)"):format(f.Name, #f:GetChildren())
+ for _, ch in ipairs(f:GetChildren()) do
+ L[#L+1] = ("    %-40s %s"):format(ch.Name:sub(1,40), ch.ClassName)
+ end
+ L[#L+1] = ""
+ L[#L+1] = "  A __DW_ or ZZZZ name here means the break REPLICATED."
+ L[#L+1] = "  Only real item names means it never left your client."
+ end
+ L[#L+1] = ""
+ L[#L+1] = "  someone else's, for comparison:"
+ local shown = false
+ pcall(function()
+ for _, e in ipairs(AR2_api.players()) do
+ if not shown and e.model then
+ local ef = e.model:FindFirstChild("Equipment")
+ or e.model:FindFirstChild("Equipped")
+ if ef then
+ shown = true
+ L[#L+1] = ("    %s -> %d items"):format(e.name, #ef:GetChildren())
+ for i, ch in ipairs(ef:GetChildren()) do
+ if i <= 8 then L[#L+1] = "      " .. ch.Name end
+ end
+ end
+ end
+ end
+ end)
+ if not shown then L[#L+1] = "    (nobody else nearby to compare with)" end
+ local txt = table.concat(L, "\n")
+ print(txt)
+ pcall(function() (setclipboard or toclipboard)(txt) end)
+ return txt
+end
+AR2_SKULLS = {
+ "Accessory Skull Bone Head Black", "Accessory Skull Bone Head Red",
+ "Accessory Skull Bone Head Pink",
+}
+function AR2_skullBreak()
+ local L = { "== SKULL + BREAK ==" }
+ local net = AR2_appNet()
+ local skull = AR2_SKULLS[1]
+ if net then
+ local ok = pcall(function() net:Send("Character Equip Item", skull) end)
+ L[#L+1] = ("  equip %s -> %s"):format(skull, ok and "sent" or "ERR")
+ end
+ pcall(function()
+ local ok, why = AR2_cosDress("Accessory", skull, 1)
+ L[#L+1] = ("  dress accessory -> %s %s"):format(tostring(ok), tostring(why))
+ end)
+ local bad = "__DW_" .. tostring(math.random(100000, 999999))
+ for _, slot in ipairs({ "Shirt", "Pants", "Vest", "Hat", "Belt", "Backpack" }) do
+ pcall(function()
+ local ok, why = AR2_cosDress(slot, bad .. " " .. slot)
+ L[#L+1] = ("  dress %-9s -> %s %s"):format(slot, tostring(ok), tostring(why))
+ end)
+ if net then pcall(function() net:Send("Character Equip Item", bad .. " " .. slot) end)
+ end
+ end
+ L[#L+1] = ""
+ L[#L+1] = "  Now press 'Verify: Equipment Mirror'. If a __DW_ name shows up"
+ L[#L+1] = "  there, it replicated and other clients are trying to build it."
+ local txt = table.concat(L, "\n")
+ print(txt)
+ pcall(function() (setclipboard or toclipboard)(txt) end)
+ AR2_notify("skull break applied -- now check the equipment mirror", 7)
+ return txt
 end
 function AR2_setAppearanceBreak(on)
  AR2_CFG.misc.appBreak = on and true or false
@@ -23046,10 +23930,6 @@ function AR2_bodyHideStatus()
  }, "\n")
 end
 function AR2_setGhostPos(on)
- AR2_CFG.misc.ghostPos = false
- do return false end
-end
-function AR2_setGhostPos_removed(on)
  AR2_CFG.misc.ghostPos = on and true or false
  AR2_ghostOn = AR2_CFG.misc.ghostPos
  if AR2_ghostOn then
@@ -23080,6 +23960,8 @@ function AR2_ghostStatus()
  tostring(AR2_CFG.misc.ghostDir), tostring(AR2_CFG.misc.ghostDist)),
  ("  net guard : %s"):format(tostring(AR2_netGuardInstalled)),
  ("  packets rewritten: %d"):format(AR2_ghostRewrites or 0),
+ ("  LOD cutoff seen   : %d studs (must exceed this)")
+ :format(AR2_LOD_CUTOFF_SEEN or 300),
  "",
  "  0 rewritten means the position fields were never matched --",
  "  tell me and I will match them a different way.",
@@ -23117,8 +23999,8 @@ AR2_desyncArmed   = false
 AR2_desyncHideTick = 0
 AR2_desyncEspHz   = nil
 AR2_desyncCamSpoofs = 0
-local AR2_DESYNC_ACTION = "AR2_DesyncSink"
-local AR2_DESYNC_SINK   = {
+AR2_DESYNC_ACTION = "AR2_DesyncSink"
+AR2_DESYNC_SINK   = {
  Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D,
  Enum.KeyCode.Space, Enum.KeyCode.LeftControl,
 }
@@ -24282,6 +25164,63 @@ end
  AR2_CFG.misc.cosRemoveAll = false
  Notif.new({Title="DROIDWARE",Content=tostring(why),Duration=4})
  end)
+ local cosReconSection = cosTab:AddSection({Name="Recon"})
+ addToggle(cosReconSection,"Sweep Any Menu (if yours isn't found)",AR2_CFG.misc,"guiUnlockAnyGui")
+ cosReconSection:AddButton({Name="Unlocker: Status",Callback=function()
+ local roots = AR2_guiWardrobeRoots()
+ local names = {}
+ for _, r in ipairs(roots) do names[#names+1] = r.Name end
+ local t = table.concat({
+ "== UNLOCKER STATUS ==",
+ ("  on:            %s"):format(tostring(AR2_CFG.misc.guiUnlock)),
+ ("  menus found:   %d  [%s]"):format(#roots, table.concat(names, ", ")),
+ ("  buttons seen:  %d"):format(AR2_guiStats.buttons or 0),
+ ("  locks hidden:  %d"):format(AR2_guiStats.locks or 0),
+ ("  clicks hooked: %d"):format(AR2_guiStats.hooks or 0),
+ ("  scanned:       %d%s"):format(AR2_guiStats.scanned or 0,
+ AR2_guiStats.capped and "  (HIT BUDGET -- narrow the menu list)" or ""),
+ ("  last tile:     %s"):format(tostring(AR2_guiLastItem)),
+ ("  last result:   %s"):format(tostring(AR2_guiNote)),
+ }, "\n")
+ print(t)
+ pcall(function() (setclipboard or toclipboard)(t) end)
+ AR2_notify("unlocker status copied", 5)
+ end})
+ addToggle(cosReconSection,"Learn Mode (record messages)",AR2_CFG.misc,"cosLearn")
+ cosReconSection:AddButton({Name="Dump: Cosmetic Messages",Callback=function()
+ local t = AR2_cosDumpMessages()
+ AR2_notify("messages copied", 5)
+ return t
+ end})
+ cosReconSection:AddButton({Name="Dump: Wardrobe API",Callback=function()
+ AR2_cosDumpWardrobe()
+ AR2_notify("wardrobe dumped to console", 5)
+ end})
+ cosReconSection:AddButton({Name="Dump: GUI Buttons",Callback=function()
+ local t = AR2_guiDump()
+ AR2_notify("gui tree copied", 5)
+ return t
+ end})
+ cosReconSection:AddButton({Name="Dump: Purchases / Skin Shape",Callback=function()
+ AR2_purchasesDump()
+ AR2_notify("purchases shape copied", 5)
+ end})
+ cosReconSection:AddButton({Name="Dump: Owned Items",Callback=function()
+ local t = AR2_cosDumpOwned()
+ AR2_notify("owned candidates copied", 5)
+ return t
+ end})
+ AR2_cosGrantIndex = AR2_cosGrantIndex or "1"
+ cosReconSection:AddInput({
+ Name = "Candidate #", Default = "1", Placeholder = "1",
+ Finished = true,
+ Callback = function(v) AR2_cosGrantIndex = tostring(v or "1") end,
+ })
+ cosReconSection:AddButton({Name="Grant All To Candidate",Callback=function()
+ local ok, why = AR2_cosGrantAll(tonumber(AR2_cosGrantIndex) or 1)
+ Notif.new({Title="DROIDWARE",
+ Content=(ok and "" or "Failed: ") .. tostring(why), Duration=5})
+ end})
  local bagSection = cosTab:AddSection({Name="Fake Bag",Position="right"})
  addFilteredDropdown(bagSection,"Bag",safeList("bag",AR2_bagCatalogue),AR2_CFG.misc,"bagName",function(v)
  pcall(AR2_bagLoadTune)
@@ -24389,6 +25328,12 @@ end
  addToggle(removeSection,"Remove Textures",AR2_CFG.misc,"removeTextures",function(v) AR2_toggleRemoveTextures(v) end)
  addToggle(removeSection,"Remove Leaves",AR2_CFG.misc,"removeLeaves",function(v) AR2_toggleRemoveLeaves(v) end)
  addToggle(removeSection,"Remove Bushes",AR2_CFG.misc,"removeBushes",function(v) AR2_toggleRemoveBushes(v) end)
+ local rdSection = worldTab:AddSection({Name="Render Distance"})
+ rdSection:AddLabel("Game default is 1250 studs")
+ addToggle(rdSection,"Unlock",AR2_CFG.visuals,"renderUnlock",
+ function(v) AR2_setRenderUnlock(v) end)
+ addSlider(rdSection,"Distance",AR2_CFG.visuals,"renderDist",2000,100000,1000,
+ function(v) if AR2_CFG.visuals.renderUnlock then AR2_setRenderUnlock(true) end end)
  local sunSection = worldTab:AddSection({Name="Sun Rays",Position="right"})
  addToggle(sunSection,"Remove Sun Rays",AR2_CFG.visuals,"removeSunRays",
  function(v) AR2_setRemoveSunRays(v) end)
